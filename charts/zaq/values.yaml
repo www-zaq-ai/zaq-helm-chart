@@ -1,0 +1,128 @@
+# Resource names. Empty overrides use the chart/release names.
+nameOverride: ""
+fullnameOverride: ""
+replicaCount: 1
+# Recreate avoids overlapping writers and ReadWriteOnce attachment conflicts.
+strategy:
+  type: Recreate
+image:
+  repository: ghcr.io/www-zaq-ai/zaq
+  tag: v0.18.0
+  # Optional immutable digest. A nonempty digest takes precedence over the tag.
+  digest: ""
+  pullPolicy: IfNotPresent
+  # Required with a digest or a non-semantic tag; operator-attested image version.
+  appVersion: ""
+imagePullSecrets: []
+secrets:
+  # Existing Secret in the release namespace; no credentials in Helm values.
+  existingSecret: zaq-runtime
+  keys:
+    ownerPassword: owner-password
+    readerPassword: reader-password
+    secretKeyBase: secret-key-base
+    encryptionKey: encryption-key
+database:
+  host: postgresql
+  port: 5432
+  # Empty identities derive from namespace/release plus a hash. Keep stable.
+  name: ""
+  owner: ""
+  reader: ""
+  poolSize: 10
+  ipv6: false
+  provisioning:
+    enabled: true
+    existingSecret: zaq-dba
+    keys:
+      username: username
+      password: password
+    maintenanceDatabase: postgres
+    engine: auto
+    # libpq setting for provisioning ONLY; not Ecto/application TLS.
+    sslMode: prefer
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+      readOnlyRootFilesystem: false
+app:
+  host: zaq.example.com
+  encryptionKeyId: v1
+  workflowsEnabled: true
+  # Non-sensitive overrides; empty uses upstream production defaults.
+  userPortalBaseUrl: ""
+  litellmBaseUrl: ""
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+podAnnotations: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  # A supplemental group gives volume write access without assuming image GID.
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+  # ZAQ/browser tooling writes under /app; validate before enabling read-only.
+  readOnlyRootFilesystem: false
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+persistence:
+  enabled: true
+  existingClaim: ""
+  # null: cluster default; "": explicitly no class; otherwise existing class name.
+  storageClass: null
+  accessModes: [ReadWriteOnce]
+  size: 10Gi
+  retain: true
+  annotations: {}
+service:
+  port: 4000
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: zaq.example.com
+  path: /
+  pathType: Prefix
+  # Example: [{secretName: zaq-tls, hosts: [zaq.example.com]}]
+  tls: []
+probes:
+  startup:
+    enabled: true
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 90
+  readiness:
+    enabled: true
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  liveness:
+    enabled: true
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+terminationGracePeriodSeconds: 60
+nodeSelector: {}
+tolerations: []
+affinity: {}

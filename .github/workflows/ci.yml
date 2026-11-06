@@ -1,0 +1,44 @@
+name: Chart CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: chart-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install pinned tools
+        run: |
+          INSTALL_DIR="$RUNNER_TEMP/zaq-tools" bash tests/install-tools.sh
+          echo "$RUNNER_TEMP/zaq-tools" >> "$GITHUB_PATH"
+      - name: Install test dependencies
+        run: |
+          python3 -m venv "$RUNNER_TEMP/zaq-venv"
+          "$RUNNER_TEMP/zaq-venv/bin/pip" install -r tests/requirements.txt
+      - name: Lint, schema, unit tests, render matrix, Kubernetes schemas, workflows
+        run: '"$RUNNER_TEMP/zaq-venv/bin/python" tests/validate.py'
+      - name: Markdown and packaging
+        run: |
+          npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md docs/*.md
+          helm package charts/zaq --destination "$RUNNER_TEMP/packages"
+          git diff --check
+  install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install pinned tools and dependencies
+        run: |
+          INSTALL_DIR="$RUNNER_TEMP/zaq-tools" bash tests/install-tools.sh
+          echo "$RUNNER_TEMP/zaq-tools" >> "$GITHUB_PATH"
+          python3 -m venv "$RUNNER_TEMP/zaq-venv"
+          "$RUNNER_TEMP/zaq-venv/bin/pip" install -r tests/requirements.txt
+      - name: Kind mock and real ZAQ installation tests
+        run: '"$RUNNER_TEMP/zaq-venv/bin/python" -u tests/integration.py'

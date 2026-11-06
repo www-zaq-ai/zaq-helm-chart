@@ -1,0 +1,158 @@
+{{- include "zaq.validate" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "zaq.fullname" . | quote }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "zaq.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "zaq.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "zaq.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "zaq.serviceAccount" . | quote }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.database.provisioning.enabled }}
+      initContainers:
+        - name: provision-db
+          image: {{ include "zaq.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - provision-db
+            - --automatic
+            - --engine
+            - {{ .Values.database.provisioning.engine | quote }}
+            - --reader
+            - {{ include "zaq.databaseIdentity" (dict "root" . "kind" "reader") | quote }}
+          securityContext:
+            {{- toYaml .Values.database.provisioning.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.database.provisioning.resources | nindent 12 }}
+          env:
+            {{- include "zaq.databaseEnv" . | nindent 12 }}
+            - name: PGDATABASE
+              value: {{ .Values.database.provisioning.maintenanceDatabase | quote }}
+            - name: PGSSLMODE
+              value: {{ .Values.database.provisioning.sslMode | quote }}
+            - name: PGCONNECT_TIMEOUT
+              value: "10"
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.provisioning.existingSecret | quote }}
+                  key: {{ .Values.database.provisioning.keys.username | quote }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.provisioning.existingSecret | quote }}
+                  key: {{ .Values.database.provisioning.keys.password | quote }}
+            - name: ZAQ_READER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret | quote }}
+                  key: {{ .Values.secrets.keys.readerPassword | quote }}
+      {{- end }}
+      containers:
+        - name: zaq
+          image: {{ include "zaq.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [server]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 4000
+              protocol: TCP
+          env:
+            {{- include "zaq.databaseEnv" . | nindent 12 }}
+            - name: PHX_SERVER
+              value: "true"
+            - name: PORT
+              value: "4000"
+            - name: PHX_HOST
+              value: {{ .Values.app.host | quote }}
+            - name: POOL_SIZE
+              value: {{ .Values.database.poolSize | quote }}
+            - name: ECTO_IPV6
+              value: {{ .Values.database.ipv6 | quote }}
+            - name: STORAGE_VOLUMES_BASE
+              value: /zaq/volumes
+            - name: SYSTEM_CONFIG_ENCRYPTION_KEY_ID
+              value: {{ .Values.app.encryptionKeyId | quote }}
+            - name: WORKFLOWS_ENABLED
+              value: {{ .Values.app.workflowsEnabled | quote }}
+            {{- range $env, $key := dict "SECRET_KEY_BASE" "secretKeyBase" "SYSTEM_CONFIG_ENCRYPTION_KEY" "encryptionKey" }}
+            - name: {{ $env }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.secrets.existingSecret | quote }}
+                  key: {{ index $.Values.secrets.keys $key | quote }}
+            {{- end }}
+            {{- with .Values.app.userPortalBaseUrl }}
+            - name: USER_PORTAL_BASE_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.app.litellmBaseUrl }}
+            - name: LITELLM_BASE_URL
+              value: {{ . | quote }}
+            {{- end }}
+          {{- range $name := list "startup" "readiness" "liveness" }}
+          {{- $probe := index $.Values.probes $name }}
+          {{- if $probe.enabled }}
+          {{ $name }}Probe:
+            httpGet:
+              path: /channels/health
+              port: http
+              scheme: HTTP
+              httpHeaders:
+                - name: X-Forwarded-Proto
+                  value: https
+            periodSeconds: {{ $probe.periodSeconds }}
+            timeoutSeconds: {{ $probe.timeoutSeconds }}
+            failureThreshold: {{ $probe.failureThreshold }}
+          {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /zaq/volumes
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (include "zaq.fullname" .) .Values.persistence.existingClaim | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

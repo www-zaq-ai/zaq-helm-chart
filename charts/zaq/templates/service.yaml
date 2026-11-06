@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "zaq.fullname" . | quote }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "zaq.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "zaq.selectorLabels" . | nindent 4 }}
