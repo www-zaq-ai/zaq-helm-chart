@@ -1,0 +1,22 @@
+# Create these Secrets in namespace customer-a before installing.
+secrets:
+  existingSecret: customer-a-runtime
+database:
+  host: postgresql.database.svc.cluster.local
+  name: customer_a
+  owner: customer_a_owner
+  reader: customer_a_reader
+  provisioning:
+    existingSecret: postgres-dba
+app:
+  host: zaq.example.org
+persistence:
+  storageClass: longhorn
+  size: 20Gi
+ingress:
+  enabled: true
+  className: nginx
+  host: zaq.example.org
+  tls:
+    - secretName: customer-a-tls
+      hosts: [zaq.example.org]

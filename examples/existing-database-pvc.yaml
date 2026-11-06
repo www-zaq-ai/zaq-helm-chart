@@ -1,0 +1,12 @@
+database:
+  host: postgresql.database.svc.cluster.local
+  name: customer_a
+  owner: customer_a_owner
+  provisioning:
+    enabled: false
+secrets:
+  existingSecret: customer-a-runtime
+persistence:
+  existingClaim: customer-a-data
+app:
+  host: zaq.example.org
