@@ -65,8 +65,10 @@ GitHub Actions validation and release workflows. Read `README.md` first.
 - Separate mocked chart tests from real ZAQ integration tests. A mock becoming
   ready does not prove the application deploys successfully.
 - Pin CI actions to immutable revisions and tools/images to reproducible
-  versions or digests. Release publication must be explicit and reject an
-  existing chart version.
+  versions or digests. Release Please manages chart versions and changelogs;
+  merging its release PR is the publication approval. Publish the exact release
+  SHA only after validation, and reject an existing chart version. Never bump
+  the ZAQ application version as part of automatic chart versioning.
 - Document assumptions and unsupported behavior instead of inventing defaults.
 
 ## Checks before committing

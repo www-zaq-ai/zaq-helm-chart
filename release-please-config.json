@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/v17.6.0/schemas/config.json",
+  "bootstrap-sha": "8076599d3007c80774ac5e499a0293eae8d69102",
+  "packages": {
+    "charts/zaq": {
+      "release-type": "helm",
+      "component": "chart",
+      "include-component-in-tag": true,
+      "include-v-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "initial-version": "0.1.0"
+    }
+  }
+}
