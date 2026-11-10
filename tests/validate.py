@@ -18,7 +18,7 @@ jsonschema.validate(values, schema)
 subprocess.run(["helm", "lint", "--strict", str(CHART)], check=True)
 subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"],
                cwd=ROOT, check=True)
-fixtures = [None, "examples/production.yaml", "examples/existing-database-pvc.yaml", "tests/fixtures/custom.yaml", "tests/fixtures/preflight.yaml"]
+fixtures = [None, "examples/production.yaml", "examples/existing-database-pvc.yaml", "tests/fixtures/custom.yaml", "tests/fixtures/preflight.yaml", "tests/fixtures/ingress-form.yaml"]
 for version in ["1.31.0", "1.32.0", "1.33.0", "1.34.0"]:
     for fixture in fixtures:
         command = ["helm", "template", "validate", str(CHART), "--namespace", "validate", "--kube-version", version]

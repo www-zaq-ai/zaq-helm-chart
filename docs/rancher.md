@@ -38,10 +38,47 @@ Use Values YAML for advanced settings and review it before installing. In
 particular, when switching from a selected StorageClass to an existing PVC,
 clear `persistence.storageClass` to `null`/unset: hiding a field does not clear
 its previous answer. To clear an existing PVC answer, use `existingClaim: ""`.
-Configure `ingress.tls` in **Values YAML** as a list of `secretName`/`hosts`
-references, never certificate/private-key contents. The form leaves this complex
-array to Values YAML rather than coercing it to text. Enabled Ingress must match
-`app.host`.
+
+### Ingress annotations and TLS
+
+Enabling Ingress creates routing to the chart's internal ClusterIP Service;
+the Ingress hostname must match `app.host`. In the form:
+
+- **Ingress annotations** accepts key/value pairs, for example
+  `cert-manager.io/cluster-issuer` → `letsencrypt-prod`.
+- **Enable TLS** adds a TLS entry using the Ingress hostname.
+- **TLS Secret name** appears when TLS is enabled. Enter the name of an existing
+  TLS Secret in the release namespace, or a Secret that cert-manager will create.
+  This is a text field so the Secret need not already exist; never enter
+  certificate/private-key values.
+
+The chart does not issue certificates or install cert-manager. Automatic issuance
+and renewal require an installed cert-manager, a configured Issuer/ClusterIssuer,
+and working DNS/ACME challenges. Alternatively, supply the TLS Secret externally.
+The Ingress controller terminates HTTPS; backend traffic to ZAQ remains HTTP.
+
+Equivalent non-sensitive values, assuming a configured `letsencrypt-prod`
+ClusterIssuer and an `nginx` Ingress controller:
+
+```yaml
+app:
+  host: zaq.example.org
+ingress:
+  enabled: true
+  className: nginx
+  host: zaq.example.org
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tlsEnabled: true
+  tlsSecretName: zaq-tls
+```
+
+For advanced TLS configuration, keep `ingress.tlsEnabled: false` and configure
+the existing `ingress.tls` list in **Values YAML**. Using the checkbox and a
+nonempty advanced list together is rejected. Clear that list before enabling
+the checkbox; unchecking it does not disable TLS supplied by the advanced list.
+Hidden fields retain their answers: a Secret name alone is ignored with the
+checkbox off, and disabling Ingress suppresses the entire Ingress resource.
 
 In **Rancher 2.10.3**, test charts appear after enabling **Avatar → Preferences →
 Helm Charts → Include Prerelease Versions**. Select the intended test version

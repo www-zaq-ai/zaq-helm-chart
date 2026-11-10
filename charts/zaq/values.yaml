@@ -126,6 +126,11 @@ ingress:
   host: zaq.example.com
   path: /
   pathType: Prefix
+  # Simple single-host TLS configuration, also exposed in Rancher's form.
+  # The Secret may already exist or be created externally by cert-manager.
+  tlsEnabled: false
+  tlsSecretName: ""
+  # Advanced alternative: leave tlsEnabled=false when supplying this list.
   # Example: [{secretName: zaq-tls, hosts: [zaq.example.com]}]
   tls: []
 probes:

@@ -11,6 +11,18 @@ Ingress is optional and terminates TLS outside ZAQ. Its hostname must match
 public hostname, support WebSockets, and restrict direct backend access.
 Cluster-specific network policies remain an operator responsibility.
 
+Rancher's form supports Ingress annotations and a single-host TLS checkbox plus
+Secret-name field (`ingress.tlsEnabled`/`ingress.tlsSecretName`). Advanced users
+can instead configure `ingress.tls` in Values YAML; the two modes are mutually
+exclusive. See [configuration examples](rancher.md#ingress-annotations-and-tls).
+
+The chart does **not** generate TLS certificates or install an issuer. Reference
+an externally supplied TLS Secret in the release namespace, or configure
+cert-manager externally and supply its issuer annotation; cert-manager then
+creates/renews the named Secret. DNS must point to the Ingress controller and
+the certificate issuer's challenge must succeed. Helm application readiness
+does not establish certificate issuance or end-to-end HTTPS availability.
+
 For temporary local access without Ingress:
 
 ```sh

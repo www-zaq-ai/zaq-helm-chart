@@ -1,0 +1,10 @@
+app:
+  host: form.example.org
+ingress:
+  enabled: true
+  className: nginx
+  host: form.example.org
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tlsEnabled: true
+  tlsSecretName: form-tls

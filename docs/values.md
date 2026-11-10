@@ -138,11 +138,23 @@ verify the actual existing claim supports it. No volume is shared with the init.
 - `service.port`: `4000`; ClusterIP Service port; container always uses `4000`.
 - `ingress.enabled`: `false`.
 - `ingress.className`: `""`; omit to use controller defaults.
-- `ingress.annotations`: `{}`; controller-specific settings.
+- `ingress.annotations`: `{}`; string key/value settings, editable in Rancher's
+  form; can include cert-manager issuer annotations.
 - `ingress.host`: `zaq.example.com`; must match `app.host` when enabled.
 - `ingress.path`: `/`.
 - `ingress.pathType`: `Prefix`; also `Exact` or `ImplementationSpecific`.
-- `ingress.tls`: `[]`; list of `{secretName: existing-tls, hosts: [hostname]}`.
+- `ingress.tlsEnabled`: `false`; simple TLS checkbox. When true, renders one TLS
+  entry using `ingress.host` and requires `ingress.tlsSecretName`.
+- `ingress.tlsSecretName`: `""`; namespace-local TLS Secret name, either existing
+  or created externally by cert-manager. Ignored when the checkbox is off.
+- `ingress.tls`: `[]`; advanced list of
+  `{secretName: existing-tls, hosts: [hostname]}`. Keep `tlsEnabled: false` to
+  use this list; a nonempty list conflicts with `tlsEnabled: true`.
+
+TLS settings never create Secrets/certificates. Issuance/renewal stays external;
+see [Rancher configuration](rancher.md#ingress-annotations-and-tls). With Ingress
+disabled, no Ingress is rendered even if TLS settings are retained. A true
+`tlsEnabled` still requires a valid Secret name and empty advanced list.
 
 ## Health probes
 

@@ -60,7 +60,8 @@ class PresentationTests(unittest.TestCase):
                 field = question_schema(q["variable"])
                 jsonschema.validate(q["default"], dict(field, definitions=SCHEMA["definitions"]))
                 types = {"boolean": bool, "int": int, "string": str, "enum": str,
-                         "secret": str, "hostname": str, "pvc": str, "array[string]": list}
+                         "secret": str, "hostname": str, "pvc": str, "array[string]": list,
+                         "map[string]": dict}
                 if q["type"] == "storageclass":
                     self.assertIsNone(expected)
                 else:
@@ -95,7 +96,7 @@ class PresentationTests(unittest.TestCase):
             if q["variable"] == "secrets.keys.readerPassword":
                 self.assertFalse(visible(q, app_only))
             if ((q["variable"].startswith("preflight.") and q["variable"] != "preflight.enabled")
-                    or (q["variable"].startswith("ingress.") and q["variable"] != "ingress.enabled")):
+                    or (q["variable"].startswith("ingress.") and q["variable"] not in {"ingress.enabled", "ingress.tlsSecretName"})):
                 self.assertFalse(visible(q, DEFAULTS))
                 self.assertTrue(visible(q, enabled))
         reuse = copy.deepcopy(DEFAULTS)
@@ -108,6 +109,26 @@ class PresentationTests(unittest.TestCase):
         documents(render({"persistence": {"existingClaim": "data"},
                           "database": {"provisioning": {"enabled": False}},
                           "preflight": {"enabled": True}}))
+
+    def test_ingress_form_tls_visibility_and_typed_answers(self):
+        questions = {q["variable"]: q for q in self.questions}
+        self.assertEqual(questions["ingress.annotations"]["type"], "map[string]")
+        self.assertEqual(questions["ingress.tlsEnabled"]["type"], "boolean")
+        self.assertEqual(questions["ingress.tlsSecretName"]["type"], "string")
+        self.assertTrue(questions["ingress.tlsSecretName"]["required"])
+        values = copy.deepcopy(DEFAULTS)
+        for ingress_enabled, tls_enabled, expected in [(False, False, False), (False, True, False),
+                                                        (True, False, False), (True, True, True)]:
+            values["ingress"].update(enabled=ingress_enabled, tlsEnabled=tls_enabled)
+            self.assertEqual(visible(questions["ingress.tlsSecretName"], values), expected)
+        values["ingress"].update({"host": "form.example.org", "tlsSecretName": "future-tls",
+                                 "annotations": {"cert-manager.io/cluster-issuer": "letsencrypt-prod"}})
+        values["app"]["host"] = "form.example.org"
+        jsonschema.validate(values, SCHEMA)
+        docs = documents(render(values))
+        ingress = next(d for d in docs if d["kind"] == "Ingress")
+        self.assertEqual(ingress["metadata"]["annotations"], values["ingress"]["annotations"])
+        self.assertEqual(ingress["spec"]["tls"], [{"secretName": "future-tls", "hosts": ["form.example.org"]}])
 
     def test_chart_archive_includes_documentation_and_form(self):
         with tempfile.TemporaryDirectory() as directory:

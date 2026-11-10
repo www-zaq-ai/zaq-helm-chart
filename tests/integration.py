@@ -213,7 +213,17 @@ def main():
             run(helm + ["uninstall", "blocked", "--wait"])
             run(kubectl + ["delete", "job", "blocked-zaq-preflight", "--ignore-not-found"])
             print("Testing real ZAQ bootstrap, migrations, probes, PVC and successful Helm hooks", flush=True)
+            # Verify API-accepted routing/TLS configuration; no controller or issuer
+            # is installed here, so this does not prove HTTPS/certificate issuance.
+            values["ingress"] = {"enabled": True, "host": "zaq.example.com", "className": "nginx",
+                                 "annotations": {"cert-manager.io/cluster-issuer": "test-issuer"},
+                                 "tlsEnabled": True, "tlsSecretName": "externally-managed-tls"}
             install("real", values)
+            ingress = get("ingress", "real-zaq")
+            assert ingress["metadata"]["annotations"]["cert-manager.io/cluster-issuer"] == "test-issuer"
+            assert ingress["spec"]["tls"] == [{"secretName": "externally-managed-tls", "hosts": ["zaq.example.com"]}]
+            assert get("service", "real-zaq")["spec"]["type"] == "ClusterIP"
+            assert not run(kubectl + ["get", "secret", "externally-managed-tls", "--ignore-not-found", "-o", "name"]).stdout
             assert not run(kubectl + ["get", "job", "real-zaq-preflight", "--ignore-not-found", "-o", "name"]).stdout
             health("real")
             assert sql("SELECT count(*) FROM public.schema_migrations;", "owner", "integration_zaq").stdout.strip() != "0"
@@ -271,9 +281,12 @@ def main():
 
             print("Testing app-only upgrade and uninstall retention", flush=True)
             values["database"]["provisioning"] = {"enabled": False}
+            values["ingress"]["tlsEnabled"] = False
             install("real", values, upgrade=True)
+            assert "tls" not in get("ingress", "real-zaq")["spec"]
             health("real")
             run(helm + ["uninstall", "real", "--wait"])
+            assert not get("ingresses")["items"]
             get("pvc", "real-zaq")
             get("secret", "zaq-runtime")
             get("secret", "zaq-dba")

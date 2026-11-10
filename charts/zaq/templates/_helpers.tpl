@@ -103,6 +103,10 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
   {{- fail "multiple replicas with persistence require ReadWriteMany and externally coordinated migrations" -}}
 {{- end -}}
 {{- if and .Values.ingress.enabled (ne .Values.ingress.host .Values.app.host) -}}{{- fail "ingress.host must match app.host" -}}{{- end -}}
+{{- if .Values.ingress.tlsEnabled -}}
+  {{- if not .Values.ingress.tlsSecretName -}}{{- fail "ingress.tlsSecretName is required when ingress.tlsEnabled=true" -}}{{- end -}}
+  {{- if .Values.ingress.tls -}}{{- fail "ingress.tls cannot be combined with ingress.tlsEnabled=true; choose simple TLS or the advanced list" -}}{{- end -}}
+{{- end -}}
 {{- if hasKey .Values.persistence.annotations "helm.sh/resource-policy" -}}{{- fail "use persistence.retain instead of the resource-policy annotation" -}}{{- end -}}
 {{- end -}}
 

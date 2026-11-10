@@ -46,9 +46,8 @@ ingress:
   enabled: true
   className: nginx
   host: zaq.example.org
-  tls:
-    - secretName: customer-a-tls
-      hosts: [zaq.example.org]
+  tlsEnabled: true
+  tlsSecretName: customer-a-tls
 ```
 
 Replace `longhorn` and `nginx` with your cluster's actual classes. For PVC reuse,
@@ -59,6 +58,20 @@ Rancher 2.10.3 users can enable **Avatar → Preferences → Helm Charts → Inc
 Prerelease Versions** to see test charts. The packaged `questions.yaml` provides
 common configuration fields; use Values YAML for advanced settings and review
 it before installation. Secret selectors select **names**, never secret values.
+
+The form includes editable Ingress annotations and an **Enable TLS** checkbox
+with a **TLS Secret name** field. TLS uses the Ingress hostname automatically.
+Reference an existing namespace-local TLS Secret, or use an installed,
+configured cert-manager with an issuer annotation (for example,
+`cert-manager.io/cluster-issuer: letsencrypt-prod`) to issue and renew it.
+The chart does not generate certificates or install cert-manager; configure
+DNS/challenges externally. HTTPS terminates at the Ingress controller, with
+HTTP to ZAQ's ClusterIP Service. Helm readiness does not verify HTTPS/issuance.
+
+For advanced TLS lists, use `ingress.tls` in Values YAML and keep
+`ingress.tlsEnabled: false`; enabling the checkbox with a nonempty list is
+rejected. Unchecking it leaves advanced-list TLS active if configured. The TLS
+Secret name alone is ignored with the checkbox off.
 
 ## Prerequisite preflight (optional, off by default)
 
