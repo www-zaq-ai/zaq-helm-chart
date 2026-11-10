@@ -18,6 +18,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = "ghcr.io"
 REPOSITORY = "www-zaq-ai/charts/zaq"
+TEST_REPOSITORY = "www-zaq-ai/charts/test/zaq"
 
 
 def release_version(tag, chart_version):
@@ -29,8 +30,10 @@ def release_version(tag, chart_version):
     return version
 
 
-def assert_version_absent(version, bearer):
-    request = Request("https://" + REGISTRY + "/v2/" + REPOSITORY + "/manifests/" + version,
+def assert_version_absent(version, bearer, repository=REPOSITORY):
+    if repository not in {REPOSITORY, TEST_REPOSITORY}:
+        raise ValueError("Unexpected chart repository")
+    request = Request("https://" + REGISTRY + "/v2/" + repository + "/manifests/" + version,
                       headers={"Authorization": "Bearer " + bearer,
                                "Accept": "application/vnd.oci.image.manifest.v1+json"})
     try:
@@ -45,6 +48,28 @@ def assert_version_absent(version, bearer):
             raise RuntimeError("Registry did not confirm an absent version; publication refused")
 
 
+def publish_chart(chart_path, version, repository=REPOSITORY):
+    if repository not in {REPOSITORY, TEST_REPOSITORY}:
+        raise ValueError("Unexpected chart repository")
+    username, token = os.environ["GHCR_USERNAME"], os.environ["GHCR_TOKEN"]
+    basic = base64.b64encode((username + ":" + token).encode()).decode()
+    query = urlencode({"service": REGISTRY, "scope": "repository:" + repository + ":pull,push"})
+    with urlopen(Request("https://" + REGISTRY + "/token?" + query,
+                         headers={"Authorization": "Basic " + basic}), timeout=30) as response:
+        bearer = json.load(response)["token"]
+    assert_version_absent(version, bearer, repository)
+    with tempfile.TemporaryDirectory(prefix="zaq-publish-") as directory:
+        env = dict(os.environ, HELM_REGISTRY_CONFIG=str(Path(directory) / "registry.json"))
+        subprocess.run(["helm", "registry", "login", REGISTRY, "--username", username, "--password-stdin"],
+                       input=token, text=True, check=True, env=env)
+        subprocess.run(["helm", "package", str(chart_path), "--version", version,
+                        "--destination", directory], check=True, env=env)
+        subprocess.run(["helm", "push", str(Path(directory) / ("zaq-" + version + ".tgz")),
+                        "oci://" + REGISTRY + "/" + repository.rsplit("/", 1)[0]], check=True, env=env)
+        subprocess.run(["helm", "show", "chart", "oci://" + REGISTRY + "/" + repository,
+                        "--version", version], check=True, env=env)
+
+
 def main():
     chart = yaml.safe_load((ROOT / "charts/zaq/Chart.yaml").read_text())
     version = release_version(os.environ["RELEASE_TAG"], chart["version"])
@@ -53,22 +78,7 @@ def main():
         return
     if sys.argv[1] != "publish":
         raise ValueError("Expected check-tag or publish")
-    username, token = os.environ["GHCR_USERNAME"], os.environ["GHCR_TOKEN"]
-    basic = base64.b64encode((username + ":" + token).encode()).decode()
-    query = urlencode({"service": REGISTRY, "scope": "repository:" + REPOSITORY + ":pull,push"})
-    with urlopen(Request("https://" + REGISTRY + "/token?" + query,
-                         headers={"Authorization": "Basic " + basic}), timeout=30) as response:
-        bearer = json.load(response)["token"]
-    assert_version_absent(version, bearer)
-    with tempfile.TemporaryDirectory(prefix="zaq-publish-") as directory:
-        env = dict(os.environ, HELM_REGISTRY_CONFIG=str(Path(directory) / "registry.json"))
-        subprocess.run(["helm", "registry", "login", REGISTRY, "--username", username, "--password-stdin"],
-                       input=token, text=True, check=True, env=env)
-        subprocess.run(["helm", "package", str(ROOT / "charts/zaq"), "--destination", directory], check=True, env=env)
-        subprocess.run(["helm", "push", str(Path(directory) / ("zaq-" + version + ".tgz")),
-                        "oci://" + REGISTRY + "/www-zaq-ai/charts"], check=True, env=env)
-        subprocess.run(["helm", "show", "chart", "oci://" + REGISTRY + "/" + REPOSITORY,
-                        "--version", version], check=True, env=env)
+    publish_chart(ROOT / "charts/zaq", version)
 
 
 if __name__ == "__main__":

@@ -4,10 +4,34 @@ import unittest
 from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
 
-from release import assert_version_absent, release_version
+from release import TEST_REPOSITORY, assert_version_absent, publish_chart, release_version
 
 
 class ReleaseTests(unittest.TestCase):
+    @patch("release.subprocess.run")
+    @patch("release.assert_version_absent")
+    @patch("release.urlopen")
+    @patch.dict("os.environ", {"GHCR_USERNAME": "test", "GHCR_TOKEN": "not-a-real-token"})
+    def test_shared_publisher_keeps_test_namespace_and_version(self, request, absent, command):
+        response = MagicMock()
+        response.__enter__.return_value = io.BytesIO(b'{"token":"test-bearer"}')
+        request.return_value = response
+        publish_chart("charts/zaq", "0.1.0-test.123.1", TEST_REPOSITORY)
+        absent.assert_called_once_with("0.1.0-test.123.1", "test-bearer", TEST_REPOSITORY)
+        commands = [call.args[0] for call in command.call_args_list]
+        package = next(cmd for cmd in commands if cmd[1] == "package")
+        self.assertEqual(package[package.index("--version") + 1], "0.1.0-test.123.1")
+        push = next(cmd for cmd in commands if cmd[1] == "push")
+        self.assertEqual(push[-1], "oci://ghcr.io/www-zaq-ai/charts/test")
+        show = next(cmd for cmd in commands if cmd[1:3] == ["show", "chart"])
+        self.assertIn("oci://ghcr.io/" + TEST_REPOSITORY, show)
+
+    def test_unexpected_publish_repositories_are_rejected(self):
+        with self.assertRaises(ValueError):
+            publish_chart("charts/zaq", "0.1.0", "unrelated/chart")
+        with self.assertRaises(ValueError):
+            assert_version_absent("0.1.0", "test", "unrelated/chart")
+
     def test_matching_tag(self):
         self.assertEqual(release_version("chart-v0.1.0", "0.1.0"), "0.1.0")
         self.assertEqual(release_version("chart-v0.2.0-rc.1", "0.2.0-rc.1"), "0.2.0-rc.1")

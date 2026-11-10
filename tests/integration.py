@@ -7,6 +7,7 @@ All credentials are ephemeral, passed as Secret JSON over stdin, never printed.
 import base64
 import copy
 import json
+import os
 from pathlib import Path
 import secrets
 import subprocess
@@ -16,7 +17,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CHART = ROOT / "charts" / "zaq"
+CHART = Path(os.environ.get("ZAQ_CHART_PATH", ROOT / "charts" / "zaq"))
 APP_IMAGE = "ghcr.io/www-zaq-ai/zaq@sha256:9bf0f9ae2299e777b56564992691eafb119d0ccba9f6d40696a1efe63a81097a"
 POSTGRES_IMAGE = "pgvector/pgvector@sha256:3e8b3adfd27b5707128f60956f62a793c3c9326ea8cfaf0eab7adccb5d700b21"
 NODE_IMAGE = "kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"

@@ -2,7 +2,7 @@
 
 This is the original implementation snapshot. The manual-tag release policy
 has since been replaced by the Release Please flow described in the
-[README](../README.md#development-and-release).
+[release guide](releases.md#production-releases-with-release-please).
 
 ## Delivered
 
