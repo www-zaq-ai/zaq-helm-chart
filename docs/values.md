@@ -32,7 +32,8 @@ Do not put credentials in any value.
 - `secrets.keys.encryptionKey`: `encryption-key`.
 
 All names/keys refer to the release namespace. The chart never reads their
-contents or creates Secret resources. See the README for content requirements.
+contents or creates Secret resources. See
+[Secret requirements](deployment.md#pre-existing-secrets) for their contents.
 
 ## PostgreSQL
 

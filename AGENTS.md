@@ -4,6 +4,9 @@
 
 This repository owns the ZAQ OS Helm chart, its documentation, chart tests, and
 GitHub Actions validation and release workflows. Read `README.md` first.
+Use [deployment](docs/deployment.md), [development](docs/development.md), and
+[release maintenance](docs/releases.md) for task-specific guidance. Keep the
+README focused on the project overview, quick start, and documentation links.
 
 - Implement only the scope requested in the active task. A documented roadmap
   is not authorization to implement additional features.
@@ -70,6 +73,13 @@ GitHub Actions validation and release workflows. Read `README.md` first.
   SHA only after validation, and reject an existing chart version. Never bump
   the ZAQ application version as part of automatic chart versioning.
 - Document assumptions and unsupported behavior instead of inventing defaults.
+- Manual test releases must use a pinned current-main SHA, a unique prerelease
+  version, the `chart-test-v` tag prefix, and the isolated `charts/test/zaq` OCI
+  repository. Never change Release Please state or application versions for them.
+- Test cleanup keeps the newest three versions regardless of age and deletes
+  only other managed test artifacts older than seven days. Preserve unknown
+  aliases/modified tags, recheck metadata before deletion, and default manual
+  cleanup to a dry run. Never test deletion against real artifacts locally.
 
 ## Checks before committing
 
