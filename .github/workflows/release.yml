@@ -50,7 +50,7 @@ jobs:
         run: |
           "$RUNNER_TEMP/zaq-venv/bin/python" tests/release.py check-tag
           "$RUNNER_TEMP/zaq-venv/bin/python" tests/validate.py
-          npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md docs/*.md
+          npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md docs/*.md charts/zaq/README.md
   install:
     needs: release
     if: ${{ needs.release.outputs.release_created == 'true' }}

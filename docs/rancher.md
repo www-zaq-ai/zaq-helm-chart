@@ -28,6 +28,25 @@ Secret names, hostname, Ingress class/TLS Secret, and StorageClass or PVC.
 The example names `longhorn` and `nginx` are not assumed to exist in every cluster.
 Never enter passwords or application keys into Helm values.
 
+The packaged chart includes a README for chart details and `questions.yaml` for
+Rancher's form. It offers namespace-local **existing Secret name** selectors and
+key-name mappings, not credential inputs; Secret creation remains external.
+Database hostnames may point outside the namespace/cluster. Optional preflight
+is available in the form; see [its failure behavior](operations.md#optional-prerequisite-preflight).
+
+Use Values YAML for advanced settings and review it before installing. In
+particular, when switching from a selected StorageClass to an existing PVC,
+clear `persistence.storageClass` to `null`/unset: hiding a field does not clear
+its previous answer. To clear an existing PVC answer, use `existingClaim: ""`.
+Configure `ingress.tls` in **Values YAML** as a list of `secretName`/`hosts`
+references, never certificate/private-key contents. The form leaves this complex
+array to Values YAML rather than coercing it to text. Enabled Ingress must match
+`app.host`.
+
+In **Rancher 2.10.3**, test charts appear after enabling **Avatar → Preferences →
+Helm Charts → Include Prerelease Versions**. Select the intended test version
+explicitly; it remains a temporary prerelease, not a production release.
+
 ## Install
 
 Use Rancher's supported OCI chart installation workflow if your version provides

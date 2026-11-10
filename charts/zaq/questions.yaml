@@ -1,0 +1,220 @@
+categories:
+  - AI
+  - Collaboration
+questions:
+  - variable: database.host
+    default: postgresql
+    type: string
+    required: true
+    label: PostgreSQL host
+    description: Reachable DNS name or IPv4 address, including an external or cross-namespace endpoint; no local PostgreSQL workload is required.
+    group: Database
+  - variable: database.port
+    default: 5432
+    type: int
+    min: 1
+    max: 65535
+    required: true
+    label: PostgreSQL port
+    group: Database
+  - variable: database.name
+    default: ""
+    type: string
+    label: Target database name
+    description: Empty derives a release/namespace-specific name. Set stable explicit identities in production.
+    group: Database
+  - variable: database.owner
+    default: ""
+    type: string
+    label: Application-owner login name
+    description: Empty derives an isolated login name. This is a username, never a password.
+    group: Database
+  - variable: database.reader
+    default: ""
+    type: string
+    label: Reader login name
+    show_if: database.provisioning.enabled=true
+    group: Database
+  - variable: database.provisioning.enabled
+    default: true
+    type: boolean
+    label: Provision the database and restricted logins
+    description: Requires a superuser DBA. Disable for a DBA-prepared database; no PostgreSQL server is installed by this chart.
+    group: Database
+  - variable: database.provisioning.existingSecret
+    default: zaq-dba
+    type: secret
+    required: true
+    label: Existing DBA Secret name
+    description: Select a pre-existing Secret in this namespace. DBA credentials are not passed to ZAQ.
+    show_if: database.provisioning.enabled=true
+    group: Database
+  - variable: database.provisioning.keys.username
+    default: username
+    type: string
+    required: true
+    label: DBA username key name
+    show_if: database.provisioning.enabled=true
+    group: Database
+  - variable: database.provisioning.keys.password
+    default: password
+    type: string
+    required: true
+    label: DBA password key name (not its value)
+    show_if: database.provisioning.enabled=true
+    group: Database
+  - variable: database.provisioning.maintenanceDatabase
+    default: postgres
+    type: string
+    required: true
+    label: DBA maintenance database
+    show_if: database.provisioning.enabled=true
+    group: Database
+  - variable: database.provisioning.engine
+    default: auto
+    type: enum
+    options: [auto, postgres, paradedb]
+    required: true
+    label: Database engine capability selection
+    show_if: database.provisioning.enabled=true
+    group: Database
+  - variable: database.provisioning.sslMode
+    default: prefer
+    type: enum
+    options: [disable, allow, prefer, require]
+    label: Provisioning libpq TLS mode
+    description: Applies to the init container only. ZAQ v0.18.0 does not enable Ecto/application database TLS.
+    show_if: database.provisioning.enabled=true
+    group: Database
+  - variable: secrets.existingSecret
+    default: zaq-runtime
+    type: secret
+    required: true
+    label: Existing deployment Secret name
+    description: Create it externally first. It holds owner/reader passwords, Phoenix key and configuration encryption key. Never enter their values here.
+    group: Secret references
+  - variable: secrets.keys.ownerPassword
+    default: owner-password
+    type: string
+    required: true
+    label: Owner password key name (not its value)
+    group: Secret references
+  - variable: secrets.keys.readerPassword
+    default: reader-password
+    type: string
+    required: true
+    label: Reader password key name (not its value)
+    show_if: database.provisioning.enabled=true
+    group: Secret references
+  - variable: secrets.keys.secretKeyBase
+    default: secret-key-base
+    type: string
+    required: true
+    label: Phoenix key name (not its value)
+    group: Secret references
+  - variable: secrets.keys.encryptionKey
+    default: encryption-key
+    type: string
+    required: true
+    label: Configuration encryption key name (not its value)
+    group: Secret references
+  - variable: preflight.enabled
+    default: false
+    type: boolean
+    label: Run prerequisite preflight before install/upgrade
+    description: Bounded read-only connectivity/authentication check plus required Secret key references. It does not provision, migrate or validate application keys.
+    group: Prerequisite check
+  - variable: preflight.activeDeadlineSeconds
+    default: 120
+    type: int
+    min: 15
+    max: 600
+    required: true
+    label: Job deadline (seconds)
+    description: Includes scheduling, image pulls and missing-Secret/key waits; allow enough time on cold nodes.
+    show_if: preflight.enabled=true
+    group: Prerequisite check
+  - variable: preflight.connectTimeoutSeconds
+    default: 10
+    type: int
+    min: 1
+    max: 30
+    required: true
+    label: Connection/query timeout (seconds)
+    description: Must be shorter than the Job deadline.
+    show_if: preflight.enabled=true
+    group: Prerequisite check
+  - variable: preflight.sslMode
+    default: prefer
+    type: enum
+    options: [disable, allow, prefer, require]
+    label: Preflight libpq TLS mode
+    description: Does not enable TLS for the application's separate Ecto connection.
+    show_if: preflight.enabled=true
+    group: Prerequisite check
+  - variable: persistence.enabled
+    default: true
+    type: boolean
+    label: Persistent application storage
+    description: Disabling uses emptyDir; Pod deletion loses application files.
+    group: Storage
+  - variable: persistence.existingClaim
+    default: ""
+    type: pvc
+    label: Existing PVC name (optional)
+    description: Select a claim in this namespace, or leave empty to create one. When reusing a PVC, leave storageClass null/unset in Values YAML.
+    show_if: persistence.enabled=true
+    group: Storage
+  - variable: persistence.storageClass
+    default: null
+    type: storageclass
+    label: Existing StorageClass (optional)
+    description: Null/unset uses the cluster default; an empty string explicitly means no class. Clear this to null in Values YAML when reusing a PVC.
+    show_if: persistence.enabled=true&&persistence.existingClaim=
+    group: Storage
+  - variable: persistence.size
+    default: 10Gi
+    type: string
+    required: true
+    label: New PVC size
+    show_if: persistence.enabled=true&&persistence.existingClaim=
+    group: Storage
+  - variable: persistence.accessModes
+    default: [ReadWriteOnce]
+    type: array[string]
+    label: PVC access modes
+    show_if: persistence.enabled=true
+    group: Storage
+  - variable: persistence.retain
+    default: true
+    type: boolean
+    label: Retain chart-created PVC on uninstall
+    show_if: persistence.enabled=true&&persistence.existingClaim=
+    group: Storage
+  - variable: app.host
+    default: zaq.example.com
+    type: hostname
+    required: true
+    label: Public ZAQ hostname
+    description: Must match the Ingress hostname if Ingress is enabled. Restrict access until the initial administrator password has been changed.
+    group: Networking
+  - variable: ingress.enabled
+    default: false
+    type: boolean
+    label: Enable Ingress
+    description: Configure the structured ingress.tls list in Values YAML using existing certificate Secret names; never enter certificate/private-key values.
+    group: Networking
+  - variable: ingress.host
+    default: zaq.example.com
+    type: hostname
+    required: true
+    label: Ingress hostname
+    description: Must equal app.host.
+    show_if: ingress.enabled=true
+    group: Networking
+  - variable: ingress.className
+    default: ""
+    type: string
+    label: Ingress class name
+    show_if: ingress.enabled=true
+    group: Networking

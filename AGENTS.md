@@ -37,6 +37,11 @@ README focused on the project overview, quick start, and documentation links.
   records. Do not use Helm `lookup` to read Secret contents.
 - Keep credential creation and rotation external. Do not reset passwords or
   bypass ZAQ receipt, ownership, or migration-ledger checks on restart.
+- Optional preflight hooks are bounded, read-only connectivity/Secret-reference
+  checks, not provisioning or migration jobs. They must support external DB
+  endpoints, need no API token/RBAC, and keep application-key validation at boot.
+- Package chart documentation and Rancher questions with the chart. Questions
+  select existing Secret names/key mappings, never accept credential values.
 - Preserve migrations-before-server startup. Installation and upgrade checks
   must wait for readiness and fail on provisioning or migration failure.
 - Do not imply that Helm rollback reverses database schema changes.
@@ -101,7 +106,8 @@ Do not claim checks passed when tooling or implementation is unavailable.
 Run the pinned Markdown linter against changed Markdown files:
 
 ```sh
-npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md docs/*.md
+npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md \
+  docs/*.md charts/zaq/README.md
 ```
 
 Check that examples match the current implementation and distinguish planned

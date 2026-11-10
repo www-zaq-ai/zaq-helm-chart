@@ -60,6 +60,28 @@ app:
   # Non-sensitive overrides; empty uses upstream production defaults.
   userPortalBaseUrl: ""
   litellmBaseUrl: ""
+# Optional read-only prerequisite hook. Never provisions or runs ZAQ/migrations.
+preflight:
+  enabled: false
+  # Bounds even Pods that cannot start because a Secret/key is missing.
+  activeDeadlineSeconds: 120
+  connectTimeoutSeconds: 10
+  # Successful hooks are removed immediately; failed hooks expire via Job TTL.
+  ttlSecondsAfterFinished: 3600
+  # libpq for the check ONLY, not the application's Ecto connection.
+  sslMode: prefer
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+    readOnlyRootFilesystem: true
 serviceAccount:
   create: true
   name: ""

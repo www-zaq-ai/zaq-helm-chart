@@ -65,8 +65,20 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 {{- end -}}
 
+{{- define "zaq.preflightName" -}}
+{{- $name := include "zaq.fullname" . -}}
+{{- if gt (len $name) 53 -}}
+{{- printf "%s-%s-preflight" ($name | trunc 44 | trimSuffix "-") ($name | sha256sum | trunc 8) -}}
+{{- else -}}
+{{- printf "%s-preflight" $name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "zaq.validate" -}}
 {{- $_ := include "zaq.appVersion" . -}}
+{{- if and .Values.preflight.enabled (le (int .Values.preflight.activeDeadlineSeconds) (int .Values.preflight.connectTimeoutSeconds)) -}}
+  {{- fail "preflight.activeDeadlineSeconds must exceed preflight.connectTimeoutSeconds" -}}
+{{- end -}}
 {{- if .Values.database.provisioning.enabled -}}
   {{- $_ := required "database.provisioning.existingSecret is required" .Values.database.provisioning.existingSecret -}}
   {{- $_ := required "secrets.keys.readerPassword is required for provisioning" .Values.secrets.keys.readerPassword -}}
@@ -108,4 +120,32 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
     secretKeyRef:
       name: {{ .Values.secrets.existingSecret | quote }}
       key: {{ .Values.secrets.keys.ownerPassword | quote }}
+{{- end -}}
+
+{{- define "zaq.applicationSecretEnv" -}}
+{{- range $env, $key := dict "SECRET_KEY_BASE" "secretKeyBase" "SYSTEM_CONFIG_ENCRYPTION_KEY" "encryptionKey" }}
+- name: {{ $env }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $.Values.secrets.existingSecret | quote }}
+      key: {{ index $.Values.secrets.keys $key | quote }}
+{{- end -}}
+{{- end -}}
+
+{{- define "zaq.provisioningSecretEnv" -}}
+- name: PGUSER
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.database.provisioning.existingSecret | quote }}
+      key: {{ .Values.database.provisioning.keys.username | quote }}
+- name: PGPASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.database.provisioning.existingSecret | quote }}
+      key: {{ .Values.database.provisioning.keys.password | quote }}
+- name: ZAQ_READER_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.secrets.existingSecret | quote }}
+      key: {{ .Values.secrets.keys.readerPassword | quote }}
 {{- end -}}

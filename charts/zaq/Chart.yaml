@@ -1,6 +1,15 @@
 apiVersion: v2
 name: zaq
-description: Isolated ZAQ OS instances with external PostgreSQL and existing Secrets
+description: >-
+  ZAQ OS, the collaborative agentic operating system, with external PostgreSQL,
+  existing Kubernetes Secrets, persistent storage, and optional HTTPS ingress.
+keywords:
+  - zaq
+  - ai
+  - agents
+  - knowledge-management
+  - collaboration
+icon: https://raw.githubusercontent.com/www-zaq-ai/zaq/eb5e422eee3d96268bf8cd968750baa54a529f97/priv/static/images/zaq.png
 type: application
 version: 0.1.0
 appVersion: "0.18.0"

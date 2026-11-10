@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "secrets", "database", "persistence", "app"],
+  "required": ["image", "secrets", "database", "persistence", "app", "preflight"],
   "definitions": {
     "nonempty": {"type": "string", "minLength": 1},
     "secretName": {"type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$"},
@@ -107,6 +107,19 @@
         "workflowsEnabled": {"type": "boolean"},
         "userPortalBaseUrl": {"type": "string", "pattern": "^(https?://[^ @]+)?$"},
         "litellmBaseUrl": {"type": "string", "pattern": "^(https?://[^ @]+)?$"}
+      }
+    },
+    "preflight": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "activeDeadlineSeconds", "connectTimeoutSeconds", "ttlSecondsAfterFinished", "sslMode", "resources", "securityContext"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "activeDeadlineSeconds": {"type": "integer", "minimum": 15, "maximum": 600},
+        "connectTimeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 30},
+        "ttlSecondsAfterFinished": {"type": "integer", "minimum": 60, "maximum": 86400},
+        "sslMode": {"enum": ["disable", "allow", "prefer", "require"]},
+        "resources": {"$ref": "#/definitions/resources"},
+        "securityContext": {"type": "object"}
       }
     },
     "serviceAccount": {"type": "object", "additionalProperties": false, "required": ["create", "name", "annotations"], "properties": {

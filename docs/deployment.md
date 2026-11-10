@@ -14,7 +14,8 @@ and initial application setup. For Rancher-specific steps, see
   CI performs real installation tests on Kind/Kubernetes 1.34.0. This is not a
   guarantee of compatibility with every future Kubernetes version.
 - A namespace and permission to create Deployments, Services, ServiceAccounts,
-  PVCs, and optionally Ingresses there.
+  PVCs, and optionally Ingresses there. Enabling preflight also requires the
+  Helm/Rancher installer to manage Jobs in that namespace.
 - Linux AMD64 or ARM64 nodes and access to `ghcr.io/www-zaq-ai/zaq` or a mirror.
 - An existing StorageClass, cluster default, or compatible existing PVC; see
   [storage requirements](storage.md).
@@ -153,6 +154,11 @@ Missing Secrets/keys block startup; offline rendering does not query the cluster
 No Secret resources or installation helper are included in the chart.
 
 ## Install from a checkout
+
+An optional [prerequisite preflight](operations.md#optional-prerequisite-preflight)
+can check required Secret references and read-only PostgreSQL authentication
+before install/upgrade. It is bounded and off by default, and never replaces
+bootstrap, migrations, or application-key validation.
 
 Run these commands from the repository root. Review the [values reference](values.md)
 and adapt [`examples/production.yaml`](../examples/production.yaml).

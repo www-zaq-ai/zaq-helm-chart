@@ -31,6 +31,68 @@ and the Helm timeout for large migrations. Liveness is delayed until startup
 succeeds. The endpoint reports HTTP availability, not database/provider health.
 See [probe settings](values.md#health-probes).
 
+## Optional prerequisite preflight
+
+Set `preflight.enabled: true` to run a **pre-install/pre-upgrade Helm hook Job**.
+It is off by default and reuses the ZAQ image without loading the application.
+It executes only `BEGIN READ ONLY; SELECT 1; ROLLBACK;` through libpq/psql:
+
+- Provisioning enabled: authenticate the DBA against the maintenance database.
+  The target database and owner/reader roles may not exist yet.
+- Provisioning disabled: authenticate the existing owner against the target DB.
+
+The check accepts external/cross-namespace PostgreSQL endpoints. It does not look
+for a PostgreSQL Pod/Service in the release namespace and makes no Kubernetes API
+calls. Only its Secret references are namespace-local. It uses the namespace's
+default ServiceAccount without an API token because the chart-created account
+does not exist yet at pre-install; no additional RBAC is created.
+The Helm/Rancher installer still needs permission to create/watch/delete Jobs;
+this is separate from the Job container's lack of API access.
+
+```yaml
+preflight:
+  enabled: true
+  activeDeadlineSeconds: 120
+  connectTimeoutSeconds: 10
+  ttlSecondsAfterFinished: 3600
+```
+
+All required runtime keys (plus DBA/reader keys when provisioning) are referenced
+individually with `secretKeyRef`. A missing Secret/key prevents container startup;
+**it cannot produce a custom container message**. In Rancher inspect the Job's
+Pod events for missing Secret/key errors. The Job's active deadline bounds even
+this pending-start state, eventually reporting Job failure/`DeadlineExceeded` to
+the Helm hook. Helm waits for hooks even without `--wait`; use `--wait` as well
+to detect later application/migration failures.
+
+The Job deadline is limited to 15–600 seconds; its connection/query timeout must
+be shorter (1–30 seconds). Image pulls and scheduling consume this deadline;
+allow enough for cold nodes. The Helm/Rancher timeout must cover the hook,
+termination allowance, and subsequent application startup. A failed
+pre-upgrade hook stops that upgrade before ordinary workload changes; it does
+not turn existing application readiness into a database health guarantee.
+
+Successful hooks are deleted immediately. Failed Jobs remain for inspection,
+then expire after their configured TTL (default one hour, 60–86400 seconds), or
+are deleted before the next hook attempt. Hooks are not ordinary release-owned
+resources and may remain after uninstall until that cleanup occurs.
+
+Once a container starts, its logs contain only a generic connectivity result;
+connection URLs, credentials, SQL output, and database-client errors are not
+printed. Inspect endpoint/Secret mappings and use protected DBA diagnostics for
+details. Fix configuration and retry; never delete migration ledgers or receipts.
+
+This is not a provisioning/migration dry run or full readiness test. It does not
+check role/extension eligibility, bootstrap receipts, storage, ingress, or key
+contents. The original terminating init container and migrations-before-server
+entrypoint remain authoritative. ZAQ boot validates application keys; malformed
+values can pass preflight presence checks and still correctly fail application
+startup. Preflight success cannot prevent a later connectivity failure.
+
+`preflight.sslMode` configures only this libpq client, separately from the init
+container setting. **Neither enables Ecto/application database TLS**; see the
+[released-image limitation](deployment.md#database-transport-limitation).
+
 ## Upgrade
 
 1. Back up PostgreSQL, application files, and key-management records.
@@ -72,6 +134,8 @@ This removes chart workloads, Service, Ingress, and created ServiceAccount.
 External Secrets and PostgreSQL data/roles remain. Existing PVCs are untouched;
 chart-created PVCs follow the [retention setting](storage.md#retention-and-reuse).
 No database cleanup or credential revocation occurs automatically.
+An enabled preflight's failed hook Job can remain until its TTL, as described
+[above](#optional-prerequisite-preflight).
 
 ## Troubleshooting
 

@@ -97,6 +97,26 @@ native Kubernetes fields. Empty maps remove optional defaults through Helm
 merging only when their entries are explicitly cleared as appropriate. Token
 automounting is always disabled on the Pod and any chart-created ServiceAccount.
 
+## Prerequisite preflight
+
+- `preflight.enabled`: `false`; optional pre-install/pre-upgrade Job.
+- `preflight.activeDeadlineSeconds`: `120`; overall Job deadline, 15–600 seconds.
+- `preflight.connectTimeoutSeconds`: `10`; bounded libpq/query process timeout,
+  1–30 seconds, strictly less than the Job deadline.
+- `preflight.ttlSecondsAfterFinished`: `3600`; failed Job retention, 60–86400
+  seconds. Successful hooks are deleted immediately; previous hooks are removed
+  before a retry.
+- `preflight.sslMode`: `prefer`; libpq-only, also `disable`, `allow`, `require`.
+  This does not secure the application's separate Ecto connection.
+- `preflight.resources.requests`: CPU `100m`, memory `128Mi`.
+- `preflight.resources.limits`: CPU `500m`, memory `256Mi`.
+- `preflight.securityContext`: privilege escalation disabled, capabilities
+  dropped, `readOnlyRootFilesystem: true`; configurable native map.
+
+Reuses image/pull Secrets, Pod security context, node selector, tolerations and
+affinity settings. Required Secrets stay externally managed and namespace-local.
+See [behavior, missing-key errors, and cleanup](operations.md#optional-prerequisite-preflight).
+
 ## Storage
 
 - `persistence.enabled`: `true`; false uses ephemeral `emptyDir`.
