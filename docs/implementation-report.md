@@ -1,5 +1,9 @@
 # Initial chart implementation report
 
+This is the original implementation snapshot. The manual-tag release policy
+has since been replaced by the Release Please flow described in the
+[README](../README.md#development-and-release).
+
 ## Delivered
 
 - Helm application chart `charts/zaq`, version `0.1.0`, targeting ZAQ `v0.18.0`.

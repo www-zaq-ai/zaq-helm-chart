@@ -6,8 +6,8 @@ pre-existing Secrets, and your cluster's storage.
 
 Chart **0.1.0** targets ZAQ **v0.18.0**. Chart and application versions are
 independent. The intended OCI reference is
-`oci://ghcr.io/www-zaq-ai/charts/zaq`; availability depends on an explicit chart
-release, not a commit to `main`.
+`oci://ghcr.io/www-zaq-ai/charts/zaq`; publication follows the merge of a Release
+Please release PR, not every ordinary commit to `main`.
 
 ## Prerequisites
 
@@ -326,11 +326,53 @@ Integration separately tests a mock deployment and real ZAQ with disposable
 PostgreSQL, ephemeral Secrets, ACLs/default grants, restart validation, credential
 and migration failures, upgrades, PVC reuse, and uninstall retention.
 
-CI runs on PRs and pushes to `main`. Publication is independent: a maintainer
-creates an explicit `chart-v0.1.0` tag matching `Chart.yaml`. The release workflow
-reruns validation/integration, packages the chart, and publishes to GHCR with
-minimal `GITHUB_TOKEN` permissions. It refuses existing versions and ambiguous
-registry errors. No release is published on ordinary `main` commits.
+CI runs on PRs and pushes to `main`. The release workflow also runs on `main`,
+using Release Please's native Helm strategy for `charts/zaq`:
+
+1. Merge chart changes using Conventional Commit messages. Release Please opens
+   or updates one release PR, grouping unreleased changes across multiple merges.
+2. Review the generated chart version, `charts/zaq/CHANGELOG.md`, and release
+   manifest. Merging this PR approves the release; no manual tag or chart-version
+   bump is needed.
+3. Release Please creates a GitHub Release and `chart-vX.Y.Z` tag. Validation
+   and Kind integration run against that exact release SHA in the same workflow.
+4. Once both gates pass, the workflow packages and publishes the chart to GHCR
+   with `GITHUB_TOKEN`. Existing versions and ambiguous registry errors still
+   block publication.
+
+The workflow uses the path-specific `release_created` output instead of relying
+on a tag-created workflow event: tags created with `GITHUB_TOKEN` do not trigger
+another workflow. Ordinary merges only update the release PR; the GitHub Release
+can exist before GHCR publication finishes. If publication or a gate fails, fix
+the cause and **rerun failed jobs**, preserving the successful Release Please
+job's outputs. Rerunning the entire workflow will not recreate an existing
+release, so it will not take the automatic publication path again.
+
+The empty initial manifest and `initial-version: 0.1.0` prepare the first release
+without claiming that version is already published. A bootstrap commit bounds
+the initial history scan; subsequent releases use the recorded release history.
+Release Please changes `Chart.yaml`'s chart `version`, **not** ZAQ's `appVersion`,
+image tag, or minimum supported application version.
+
+Chart commits are scoped to `charts/zaq`. Use `fix:` for patches, `feat:` for
+minor releases, and `!` or `BREAKING CHANGE:` for major releases. Docs, tests,
+and CI-only commits do not normally trigger a release. Squash merging with a
+Conventional Commit PR title makes the release intent clear.
+
+### GitHub repository setup
+
+Enable **Allow GitHub Actions to create and approve pull requests** in repository
+Settings → Actions → General. Release Please uses job-scoped contents, issues,
+and pull-request write permissions; only the publication job gets package write
+permission. It does not automatically merge its release PR.
+
+By default, Release Please uses `GITHUB_TOKEN`. GitHub suppresses CI events for
+bot-created/updated PRs using this token, which can leave required PR checks
+pending. If your branch rules require those checks, configure the optional
+`RELEASE_PLEASE_TOKEN` Actions secret with a repository-scoped automation token
+that can write contents, issues, and pull requests and trigger PR workflows.
+Do not bypass branch protection to compensate. GHCR publication continues to
+use `GITHUB_TOKEN`, not this optional token.
 
 See the [initial implementation report](docs/implementation-report.md) for
 checks actually performed and remaining production constraints.
