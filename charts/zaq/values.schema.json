@@ -1,0 +1,153 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["image", "secrets", "database", "persistence", "app"],
+  "definitions": {
+    "nonempty": {"type": "string", "minLength": 1},
+    "secretName": {"type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$"},
+    "key": {"type": "string", "minLength": 1, "pattern": "^[a-zA-Z0-9._-]+$"},
+    "identity": {"type": "string", "maxLength": 63, "pattern": "^([a-z_][a-z0-9_]{0,62})?$"},
+    "annotations": {"type": "object", "additionalProperties": {"type": "string"}},
+    "probe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "periodSeconds": {"type": "integer", "minimum": 1},
+        "timeoutSeconds": {"type": "integer", "minimum": 1},
+        "failureThreshold": {"type": "integer", "minimum": 1}
+      }
+    },
+    "resources": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "requests": {"$ref": "#/definitions/quantities"},
+        "limits": {"$ref": "#/definitions/quantities"}
+      }
+    },
+    "quantities": {"type": "object", "additionalProperties": {"type": ["string", "number"]}}
+  },
+  "properties": {
+    "nameOverride": {"type": "string", "maxLength": 63, "pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?)?$"},
+    "fullnameOverride": {"type": "string", "maxLength": 63, "pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?)?$"},
+    "replicaCount": {"type": "integer", "minimum": 1},
+    "strategy": {
+      "type": "object", "additionalProperties": false, "required": ["type"],
+      "properties": {
+        "type": {"enum": ["Recreate", "RollingUpdate"]},
+        "rollingUpdate": {"type": "object", "additionalProperties": false, "properties": {
+          "maxSurge": {"type": ["integer", "string"]},
+          "maxUnavailable": {"type": ["integer", "string"]}
+        }}
+      }
+    },
+    "image": {
+      "type": "object", "additionalProperties": false,
+      "required": ["repository", "tag", "digest", "pullPolicy", "appVersion"],
+      "properties": {
+        "repository": {"$ref": "#/definitions/nonempty"},
+        "tag": {"$ref": "#/definitions/nonempty"},
+        "digest": {"type": "string", "pattern": "^(sha256:[a-f0-9]{64})?$"},
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
+        "appVersion": {"type": "string"}
+      }
+    },
+    "imagePullSecrets": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {"name": {"$ref": "#/definitions/secretName"}}}},
+    "secrets": {
+      "type": "object", "additionalProperties": false, "required": ["existingSecret", "keys"],
+      "properties": {
+        "existingSecret": {"$ref": "#/definitions/secretName"},
+        "keys": {"type": "object", "additionalProperties": false, "required": ["ownerPassword", "secretKeyBase", "encryptionKey"], "properties": {
+          "ownerPassword": {"$ref": "#/definitions/key"},
+          "readerPassword": {"type": "string", "pattern": "^[a-zA-Z0-9._-]*$"},
+          "secretKeyBase": {"$ref": "#/definitions/key"},
+          "encryptionKey": {"$ref": "#/definitions/key"}
+        }}
+      }
+    },
+    "database": {
+      "type": "object", "additionalProperties": false,
+      "required": ["host", "port", "name", "owner", "reader", "poolSize", "ipv6", "provisioning"],
+      "properties": {
+        "host": {"type": "string", "minLength": 1, "pattern": "^[a-zA-Z0-9][a-zA-Z0-9.-]*$"},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "name": {"$ref": "#/definitions/identity"},
+        "owner": {"$ref": "#/definitions/identity"},
+        "reader": {"$ref": "#/definitions/identity"},
+        "poolSize": {"type": "integer", "minimum": 1},
+        "ipv6": {"type": "boolean"},
+        "provisioning": {
+          "type": "object", "additionalProperties": false,
+          "required": ["enabled", "maintenanceDatabase", "engine", "sslMode", "resources", "securityContext"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "existingSecret": {"type": "string", "maxLength": 253, "pattern": "^([a-z0-9]([a-z0-9.-]*[a-z0-9])?)?$"},
+            "keys": {"type": "object", "additionalProperties": false, "properties": {
+              "username": {"$ref": "#/definitions/key"}, "password": {"$ref": "#/definitions/key"}
+            }},
+            "maintenanceDatabase": {"type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-z_][a-z0-9_]*$"},
+            "engine": {"enum": ["auto", "postgres", "paradedb"]},
+            "sslMode": {"enum": ["disable", "allow", "prefer", "require"]},
+            "resources": {"$ref": "#/definitions/resources"},
+            "securityContext": {"type": "object"}
+          },
+          "allOf": [{"if": {"properties": {"enabled": {"const": true}}}, "then": {
+            "required": ["existingSecret", "keys"],
+            "properties": {"existingSecret": {"$ref": "#/definitions/secretName"}, "keys": {"required": ["username", "password"]}}
+          }}]
+        }
+      }
+    },
+    "app": {
+      "type": "object", "additionalProperties": false, "required": ["host", "encryptionKeyId", "workflowsEnabled"],
+      "properties": {
+        "host": {"type": "string", "minLength": 1, "pattern": "^[a-zA-Z0-9][a-zA-Z0-9.-]*$"},
+        "encryptionKeyId": {"$ref": "#/definitions/nonempty"},
+        "workflowsEnabled": {"type": "boolean"},
+        "userPortalBaseUrl": {"type": "string", "pattern": "^(https?://[^ @]+)?$"},
+        "litellmBaseUrl": {"type": "string", "pattern": "^(https?://[^ @]+)?$"}
+      }
+    },
+    "serviceAccount": {"type": "object", "additionalProperties": false, "required": ["create", "name", "annotations"], "properties": {
+      "create": {"type": "boolean"}, "name": {"type": "string"}, "annotations": {"$ref": "#/definitions/annotations"}
+    }},
+    "podAnnotations": {"$ref": "#/definitions/annotations"},
+    "podSecurityContext": {"type": "object"},
+    "securityContext": {"type": "object"},
+    "resources": {"$ref": "#/definitions/resources"},
+    "persistence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "existingClaim", "accessModes", "size", "retain", "annotations"],
+      "properties": {
+        "enabled": {"type": "boolean"}, "existingClaim": {"type": "string"},
+        "storageClass": {"type": ["string", "null"]},
+        "accessModes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["ReadWriteOnce", "ReadWriteMany", "ReadOnlyMany", "ReadWriteOncePod"]}},
+        "size": {"type": "string", "pattern": "^[1-9][0-9]*(Ki|Mi|Gi|Ti|Pi|Ei)$"},
+        "retain": {"type": "boolean"}, "annotations": {"$ref": "#/definitions/annotations"}
+      }
+    },
+    "service": {"type": "object", "additionalProperties": false, "required": ["port"], "properties": {"port": {"type": "integer", "minimum": 1, "maximum": 65535}}},
+    "ingress": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "className", "annotations", "host", "path", "pathType", "tls"],
+      "properties": {
+        "enabled": {"type": "boolean"}, "className": {"type": "string"},
+        "annotations": {"$ref": "#/definitions/annotations"},
+        "host": {"type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9.-]*$"},
+        "path": {"type": "string", "pattern": "^/"},
+        "pathType": {"enum": ["Prefix", "Exact", "ImplementationSpecific"]},
+        "tls": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["secretName", "hosts"], "properties": {
+          "secretName": {"$ref": "#/definitions/secretName"},
+          "hosts": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/nonempty"}}
+        }}}
+      }
+    },
+    "probes": {"type": "object", "additionalProperties": false, "required": ["startup", "readiness", "liveness"], "properties": {
+      "startup": {"$ref": "#/definitions/probe"}, "readiness": {"$ref": "#/definitions/probe"}, "liveness": {"$ref": "#/definitions/probe"}
+    }},
+    "terminationGracePeriodSeconds": {"type": "integer", "minimum": 1},
+    "nodeSelector": {"$ref": "#/definitions/annotations"},
+    "tolerations": {"type": "array", "items": {"type": "object"}},
+    "affinity": {"type": "object"}
+  }
+}

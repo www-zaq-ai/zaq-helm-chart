@@ -1,0 +1,19 @@
+ZAQ {{ include "zaq.appVersion" . }} is configured in namespace {{ .Release.Namespace }}.
+
+Required existing deployment Secret: {{ .Values.secrets.existingSecret }}
+{{ if .Values.database.provisioning.enabled }}Required existing DBA Secret: {{ .Values.database.provisioning.existingSecret }}{{ end }}
+Database: {{ include "zaq.databaseIdentity" (dict "root" . "kind" "name") }}
+Application owner: {{ include "zaq.databaseIdentity" (dict "root" . "kind" "owner") }}
+Reader: {{ include "zaq.databaseIdentity" (dict "root" . "kind" "reader") }}
+
+Install/upgrade with --wait --timeout 20m to detect failed startup or migrations.
+Check readiness: kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "zaq.fullname" . }}
+{{ if .Values.ingress.enabled }}Back Office: https://{{ .Values.ingress.host }}/bo/login
+{{ else }}No Ingress is configured. For local-only access:
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "zaq.fullname" . }} 4000:{{ .Values.service.port }}
+  Open http://localhost:4000/bo/login
+{{ end }}
+Complete first-login password setup before exposing a fresh instance publicly.
+Configure Disk data sources and agents in Back Office; a mount is not a data source.
+Keep application encryption keys stable. Helm rollback does not undo DB migrations.
+{{ if .Values.persistence.enabled }}Persistence is enabled. {{ if .Values.persistence.existingClaim }}The existing PVC is externally managed.{{ else if .Values.persistence.retain }}The PVC is retained on uninstall.{{ else }}WARNING: uninstall deletes the chart-created PVC.{{ end }}{{ else }}WARNING: application files use ephemeral emptyDir storage.{{ end }}

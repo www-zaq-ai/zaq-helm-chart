@@ -1,0 +1,61 @@
+name: Publish chart
+on:
+  push:
+    tags: ['chart-v*']
+permissions:
+  contents: read
+concurrency:
+  group: chart-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install pinned tools and dependencies
+        run: |
+          INSTALL_DIR="$RUNNER_TEMP/zaq-tools" bash tests/install-tools.sh
+          echo "$RUNNER_TEMP/zaq-tools" >> "$GITHUB_PATH"
+          python3 -m venv "$RUNNER_TEMP/zaq-venv"
+          "$RUNNER_TEMP/zaq-venv/bin/pip" install -r tests/requirements.txt
+      - name: Validate release tag and chart
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          "$RUNNER_TEMP/zaq-venv/bin/python" tests/release.py check-tag
+          "$RUNNER_TEMP/zaq-venv/bin/python" tests/validate.py
+  install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install pinned tools and dependencies
+        run: |
+          INSTALL_DIR="$RUNNER_TEMP/zaq-tools" bash tests/install-tools.sh
+          echo "$RUNNER_TEMP/zaq-tools" >> "$GITHUB_PATH"
+          python3 -m venv "$RUNNER_TEMP/zaq-venv"
+          "$RUNNER_TEMP/zaq-venv/bin/pip" install -r tests/requirements.txt
+      - name: Real installation gate
+        run: '"$RUNNER_TEMP/zaq-venv/bin/python" -u tests/integration.py'
+  publish:
+    needs: [validate, install]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install pinned tools and dependencies
+        run: |
+          INSTALL_DIR="$RUNNER_TEMP/zaq-tools" bash tests/install-tools.sh
+          echo "$RUNNER_TEMP/zaq-tools" >> "$GITHUB_PATH"
+          python3 -m venv "$RUNNER_TEMP/zaq-venv"
+          "$RUNNER_TEMP/zaq-venv/bin/pip" install -r tests/requirements.txt
+      - name: Refuse existing versions and publish OCI chart
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: '"$RUNNER_TEMP/zaq-venv/bin/python" tests/release.py publish'

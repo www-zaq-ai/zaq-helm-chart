@@ -1,0 +1,44 @@
+fullnameOverride: custom-zaq
+imagePullSecrets:
+  - name: registry-auth
+secrets:
+  existingSecret: custom-runtime
+  keys:
+    ownerPassword: app
+    readerPassword: reader
+    secretKeyBase: phoenix
+    encryptionKey: encryption
+database:
+  name: custom_database
+  owner: custom_owner
+  reader: custom_reader
+  provisioning:
+    existingSecret: custom-dba
+    keys:
+      username: dba-login
+      password: dba-password
+podAnnotations:
+  example.org/restart: "1"
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: "3"
+    memory: 3Gi
+nodeSelector:
+  workload: zaq
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: zaq
+    effect: NoSchedule
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: zaq
+          topologyKey: kubernetes.io/hostname

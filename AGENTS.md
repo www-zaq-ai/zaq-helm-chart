@@ -89,14 +89,14 @@ Do not claim checks passed when tooling or implementation is unavailable.
 Run the pinned Markdown linter against changed Markdown files:
 
 ```sh
-npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md
+npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md docs/*.md
 ```
 
 Check that examples match the current implementation and distinguish planned
 functionality from shipped functionality. Documentation-only work does not
 require an application build or a Kubernetes installation.
 
-### Chart changes, once the chart exists
+### Chart changes
 
 - Run `helm lint --strict charts/zaq`.
 - Validate values against the JSON schema, including invalid-value fixtures.
@@ -110,12 +110,15 @@ require an application build or a Kubernetes installation.
   and ephemeral test credentials. Verify readiness and cleanup/retention.
 - Verify `helm package charts/zaq` for packaging or release-related changes.
 
-Use the repository's canonical test commands when they are introduced; keep
-this guidance synchronized with CI. Do not substitute mock-only checks for
-required integration checks. Broaden testing when failures or changed behavior
-justify it, rather than repeating successful unrelated suites.
+Canonical checks: install `tests/requirements.txt`, then run
+`python tests/validate.py` and, for integration-sensitive changes,
+`python -u tests/integration.py`. Install pinned tools with
+`INSTALL_DIR=/your/tools/path bash tests/install-tools.sh`; add that path to
+`PATH`. Keep this guidance synchronized with CI. Do not substitute mock-only
+checks for required integration checks. Broaden testing when failures or changed
+behavior justify it, rather than repeating successful unrelated suites.
 
-### Workflow changes, once workflows exist
+### Workflow changes
 
 Validate GitHub Actions syntax with a pinned workflow linter. Review trigger
 scope, token permissions, immutable dependency pins, credential handling, and
