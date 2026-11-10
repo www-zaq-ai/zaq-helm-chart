@@ -202,7 +202,7 @@ questions:
     default: false
     type: boolean
     label: Enable Ingress
-    description: Configure the structured ingress.tls list in Values YAML using existing certificate Secret names; never enter certificate/private-key values.
+    description: Creates an Ingress pointing to the internal ClusterIP Service. An Ingress controller and DNS must be configured separately.
     group: Networking
   - variable: ingress.host
     default: zaq.example.com
@@ -217,4 +217,26 @@ questions:
     type: string
     label: Ingress class name
     show_if: ingress.enabled=true
+    group: Networking
+  - variable: ingress.annotations
+    default: {}
+    type: map[string]
+    label: Ingress annotations
+    description: "Optional key/value settings, for example cert-manager.io/cluster-issuer: letsencrypt-prod. Requires an installed cert-manager and configured issuer for automatic certificates."
+    show_if: ingress.enabled=true
+    group: Networking
+  - variable: ingress.tlsEnabled
+    default: false
+    type: boolean
+    label: Enable TLS
+    description: Uses the Ingress hostname for TLS. Does not generate certificates; use an existing TLS Secret or external cert-manager. Leave off when configuring the advanced ingress.tls list in Values YAML.
+    show_if: ingress.enabled=true
+    group: Networking
+  - variable: ingress.tlsSecretName
+    default: ""
+    type: string
+    required: true
+    label: TLS Secret name
+    description: Name in this namespace of an existing TLS Secret or one cert-manager will create. Enter a name only, never certificate/private-key values. Clear the advanced ingress.tls list when enabling this option.
+    show_if: ingress.enabled=true&&ingress.tlsEnabled=true
     group: Networking

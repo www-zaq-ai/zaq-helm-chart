@@ -31,13 +31,16 @@ The test-release workflow uses this to test its packaged prerelease.
 
 Unit tests cover rendering, schema failures, identity isolation, Secret wiring,
 probes, storage, security, versions, and release tags. The schema matrix covers
-default, TLS Ingress, custom, and existing-database/PVC configurations across
-Kubernetes 1.31–1.34.
+default, advanced-list and Rancher-form TLS Ingress, custom, and
+existing-database/PVC configurations across Kubernetes 1.31–1.34.
 
 Integration separately tests a mock deployment and real ZAQ with disposable
 PostgreSQL, ephemeral Secrets, ACLs/default grants, restart validation, credential
 and migration failures, upgrades, PVC reuse, and uninstall retention. Mock
 readiness alone is not proof that ZAQ deploys successfully.
+Ingress integration checks API-accepted annotations/TLS configuration, removing
+TLS on upgrade, and resource cleanup. It installs no Ingress controller or
+cert-manager, so it does not verify certificate issuance or end-to-end HTTPS.
 
 Release-automation tests cover source-SHA pinning, test namespace isolation,
 retention boundaries, pagination, dry runs, and deletion guards without
