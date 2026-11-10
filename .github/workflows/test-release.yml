@@ -45,7 +45,7 @@ jobs:
           TEST_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           "$RUNNER_TEMP/zaq-venv/bin/python" tests/validate.py
-          npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md docs/*.md
+          npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md docs/*.md charts/zaq/README.md
           helm package charts/zaq --version "$TEST_VERSION" --destination "$RUNNER_TEMP/packages"
           helm lint --strict "$RUNNER_TEMP/packages/zaq-$TEST_VERSION.tgz"
           helm template test "$RUNNER_TEMP/packages/zaq-$TEST_VERSION.tgz" --kube-version 1.34.0 |

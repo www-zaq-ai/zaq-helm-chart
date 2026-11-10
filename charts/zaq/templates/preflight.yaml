@@ -1,0 +1,94 @@
+{{- if .Values.preflight.enabled -}}
+{{- include "zaq.validate" . -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "zaq.preflightName" . | quote }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "zaq.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: {{ .Values.preflight.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.preflight.ttlSecondsAfterFinished }}
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        app.kubernetes.io/component: preflight
+    spec:
+      # Ordinary chart resources (including its SA) do not exist at pre-install.
+      # Use the namespace's default SA without a token; no API permissions needed.
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: preflight
+          image: {{ include "zaq.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.preflight.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.preflight.resources | nindent 12 }}
+          command:
+            - python3
+            - -c
+            - |
+              import os, subprocess, sys
+              connection = {key: os.environ[key] for key in (
+                  "PGHOST", "PGPORT", "PGDATABASE", "PGSSLMODE", "PGCONNECT_TIMEOUT")}
+              connection["PGUSER"] = os.environ.get("PGUSER", os.environ["ZAQ_OWNER"])
+              connection["PGPASSWORD"] = os.environ.get("PGPASSWORD", os.environ["ZAQ_OWNER_PASSWORD"])
+              connection["PATH"] = os.environ["PATH"]
+              try:
+                  result = subprocess.run(
+                      ["psql", "-X", "--no-password", "-qAt", "-v", "ON_ERROR_STOP=1",
+                       "-c", "BEGIN READ ONLY; SELECT 1; ROLLBACK;"],
+                      env=connection, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                      timeout=int(os.environ["PGCONNECT_TIMEOUT"]))
+                  passed = result.returncode == 0
+              except (OSError, subprocess.TimeoutExpired):
+                  passed = False
+              # Never print connection URLs, environment, SQL results, or psql errors.
+              print("ZAQ prerequisite connectivity check " + ("passed." if passed else
+                    "failed; check endpoint, authentication and libpq TLS settings."))
+              sys.exit(0 if passed else 1)
+          env:
+            {{- include "zaq.databaseEnv" . | nindent 12 }}
+            {{- include "zaq.applicationSecretEnv" . | nindent 12 }}
+            {{- if .Values.database.provisioning.enabled }}
+            {{- include "zaq.provisioningSecretEnv" . | nindent 12 }}
+            {{- end }}
+            - name: PGDATABASE
+              {{- if .Values.database.provisioning.enabled }}
+              value: {{ .Values.database.provisioning.maintenanceDatabase | quote }}
+              {{- else }}
+              value: {{ include "zaq.databaseIdentity" (dict "root" . "kind" "name") | quote }}
+              {{- end }}
+            - name: PGSSLMODE
+              value: {{ .Values.preflight.sslMode | quote }}
+            - name: PGCONNECT_TIMEOUT
+              value: {{ .Values.preflight.connectTimeoutSeconds | quote }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

@@ -26,7 +26,7 @@ jobs:
         run: '"$RUNNER_TEMP/zaq-venv/bin/python" tests/validate.py'
       - name: Markdown and packaging
         run: |
-          npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md docs/*.md
+          npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md docs/*.md charts/zaq/README.md
           helm package charts/zaq --destination "$RUNNER_TEMP/packages"
           git diff --check
   install:

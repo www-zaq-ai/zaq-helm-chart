@@ -11,7 +11,8 @@ export PATH="$HOME/.local/zaq-chart-tools:$PATH"
 python3 -m venv .venv
 .venv/bin/pip install -r tests/requirements.txt
 .venv/bin/python tests/validate.py
-npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md docs/*.md
+npx --yes markdownlint-cli2@0.18.1 README.md AGENTS.md \
+  docs/*.md charts/zaq/README.md
 .venv/bin/python -u tests/integration.py
 helm package charts/zaq --destination .artifacts
 ```
@@ -56,7 +57,11 @@ or deletion merely to validate workflow changes.
 
 Keep docs consistent with implemented behavior. Avoid duplicating detailed
 guidance in the [README](../README.md); it is the overview and quick start.
-CI already lints `docs/*.md`, so new guides are included automatically.
+CI already lints `docs/*.md` and `charts/zaq/README.md`, so new guides and the
+packaged chart details are covered. Chart tests also verify packaged README/form
+inclusion and question defaults/types against values/schema. Preflight changes
+require real Kind coverage, including cross-namespace PostgreSQL, bounded
+missing-Secret/key failures, read-only behavior, and credential-safe diagnostics.
 
 See [release maintenance](releases.md) for versioning and publishing, and the
 [initial implementation report](implementation-report.md) for the original
