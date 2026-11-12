@@ -57,9 +57,6 @@ app:
   host: zaq.example.com
   encryptionKeyId: v1
   workflowsEnabled: true
-  # Non-sensitive overrides; empty uses upstream production defaults.
-  userPortalBaseUrl: ""
-  litellmBaseUrl: ""
 # Optional read-only prerequisite hook. Never provisions or runs ZAQ/migrations.
 preflight:
   enabled: false
@@ -122,7 +119,12 @@ service:
 ingress:
   enabled: false
   className: ""
-  annotations: {}
+  # Editable in Rancher; additional annotations are merged with these defaults.
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50M"
+    nginx.org/client-max-body-size: "50M"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   host: zaq.example.com
   path: /
   pathType: Prefix

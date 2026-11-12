@@ -10,7 +10,8 @@ class IngressTests(unittest.TestCase):
     def test_simple_tls_uses_ingress_host_and_preserves_annotations(self):
         docs = documents(render(fixture="tests/fixtures/ingress-form.yaml"))
         ingress = resource(docs, "Ingress")
-        self.assertEqual(ingress["metadata"]["annotations"], {"cert-manager.io/cluster-issuer": "letsencrypt-prod"})
+        self.assertEqual(ingress["metadata"]["annotations"], dict(DEFAULTS["ingress"]["annotations"],
+                                                               **{"cert-manager.io/cluster-issuer": "letsencrypt-prod"}))
         self.assertEqual(ingress["spec"]["tls"], [{"secretName": "form-tls", "hosts": ["form.example.org"]}])
         service = resource(docs, "Service")
         self.assertEqual(service["spec"]["type"], "ClusterIP")
@@ -29,12 +30,27 @@ class IngressTests(unittest.TestCase):
         docs = documents(render({"ingress": {"enabled": True, "tls": tls, "tlsSecretName": "ignored"}}))
         self.assertEqual(resource(docs, "Ingress")["spec"]["tls"], tls)
 
+    def test_default_annotations_are_strings_and_remain_overridable(self):
+        expected = {"nginx.ingress.kubernetes.io/proxy-body-size": "50M",
+                    "nginx.org/client-max-body-size": "50M",
+                    "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
+                    "nginx.ingress.kubernetes.io/proxy-send-timeout": "3600"}
+        docs = documents(render({"ingress": {"enabled": True}}))
+        self.assertEqual(resource(docs, "Ingress")["metadata"]["annotations"], expected)
+        overrides = {"nginx.ingress.kubernetes.io/proxy-body-size": "100M",
+                     "nginx.ingress.kubernetes.io/proxy-read-timeout": "7200",
+                     "example.org/custom": "enabled"}
+        docs = documents(render({"ingress": {"enabled": True, "annotations": overrides}}))
+        expected.update(overrides)
+        self.assertEqual(resource(docs, "Ingress")["metadata"]["annotations"], expected)
+
     def test_invalid_tls_and_annotation_values_fail_schema_and_render(self):
         for ingress in [{"tlsEnabled": "true"}, {"tlsSecretName": 123},
                         {"tlsEnabled": True}, {"tlsEnabled": True, "tlsSecretName": ""},
                         {"tlsEnabled": True, "tlsSecretName": "invalid/name"},
                         {"tlsEnabled": True, "tlsSecretName": "tls", "tls": [{"secretName": "other", "hosts": ["zaq.example.com"]}]},
-                        {"annotations": "not-a-map"}, {"annotations": {"some-key": True}}]:
+                        {"annotations": "not-a-map"}, {"annotations": {"some-key": True}},
+                        {"annotations": {"nginx.ingress.kubernetes.io/proxy-read-timeout": 3600}}]:
             with self.subTest(ingress=ingress):
                 values = copy.deepcopy(DEFAULTS)
                 values["ingress"].update(ingress)

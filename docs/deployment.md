@@ -7,6 +7,13 @@ and initial application setup. For Rancher-specific steps, see
 
 ## Prerequisites
 
+ZAQ uses its image defaults for the User Portal and LiteLLM URLs; the chart no
+longer overrides them. Before upgrading from an older chart, remove
+`app.userPortalBaseUrl` and `app.litellmBaseUrl` from saved values files: these
+removed settings are rejected by the schema, even if empty. When upgrading with
+Helm, use a reviewed current values file rather than `--reuse-values` retaining
+the removed keys.
+
 ### Cluster and tooling
 
 - Helm **3.18.6** is the validation baseline; Helm v3 is required.

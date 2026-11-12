@@ -44,8 +44,11 @@ its previous answer. To clear an existing PVC answer, use `existingClaim: ""`.
 Enabling Ingress creates routing to the chart's internal ClusterIP Service;
 the Ingress hostname must match `app.host`. In the form:
 
-- **Ingress annotations** accepts key/value pairs, for example
-  `cert-manager.io/cluster-issuer` → `letsencrypt-prod`.
+- **Ingress annotations** prefills the two NGINX body-size defaults (`50M`)
+  and ingress-nginx read/send timeouts (`"3600"` seconds). Edit individual values
+  and add other key/value pairs, for example
+  `cert-manager.io/cluster-issuer` → `letsencrypt-prod`. Additional entries merge
+  with the chart defaults. Each controller applies the annotations it supports.
 - **Enable TLS** adds a TLS entry using the Ingress hostname.
 - **TLS Secret name** appears when TLS is enabled. Enter the name of an existing
   TLS Secret in the release namespace, or a Secret that cert-manager will create.

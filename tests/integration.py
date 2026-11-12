@@ -221,6 +221,13 @@ def main():
             install("real", values)
             ingress = get("ingress", "real-zaq")
             assert ingress["metadata"]["annotations"]["cert-manager.io/cluster-issuer"] == "test-issuer"
+            for key, value in {"nginx.ingress.kubernetes.io/proxy-body-size": "50M",
+                               "nginx.org/client-max-body-size": "50M",
+                               "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
+                               "nginx.ingress.kubernetes.io/proxy-send-timeout": "3600"}.items():
+                assert ingress["metadata"]["annotations"][key] == value
+            for container in get("deployment", "real-zaq")["spec"]["template"]["spec"]["containers"]:
+                assert {"USER_PORTAL_BASE_URL", "LITELLM_BASE_URL"}.isdisjoint(e["name"] for e in container["env"])
             assert ingress["spec"]["tls"] == [{"secretName": "externally-managed-tls", "hosts": ["zaq.example.com"]}]
             assert get("service", "real-zaq")["spec"]["type"] == "ClusterIP"
             assert not run(kubectl + ["get", "secret", "externally-managed-tls", "--ignore-not-found", "-o", "name"]).stdout
@@ -282,8 +289,10 @@ def main():
             print("Testing app-only upgrade and uninstall retention", flush=True)
             values["database"]["provisioning"] = {"enabled": False}
             values["ingress"]["tlsEnabled"] = False
+            values["ingress"]["annotations"]["nginx.ingress.kubernetes.io/proxy-read-timeout"] = "7200"
             install("real", values, upgrade=True)
             assert "tls" not in get("ingress", "real-zaq")["spec"]
+            assert get("ingress", "real-zaq")["metadata"]["annotations"]["nginx.ingress.kubernetes.io/proxy-read-timeout"] == "7200"
             health("real")
             run(helm + ["uninstall", "real", "--wait"])
             assert not get("ingresses")["items"]

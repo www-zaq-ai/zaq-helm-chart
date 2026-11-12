@@ -11,6 +11,14 @@ Ingress is optional and terminates TLS outside ZAQ. Its hostname must match
 public hostname, support WebSockets, and restrict direct backend access.
 Cluster-specific network policies remain an operator responsibility.
 
+Enabled Ingresses default to `50M` request-body limits via
+`nginx.ingress.kubernetes.io/proxy-body-size` and
+`nginx.org/client-max-body-size`, plus `"3600"`-second ingress-nginx
+`proxy-read-timeout` and `proxy-send-timeout`. These are controller settings,
+not application upload limits or a guaranteed request lifetime. Each controller
+applies its supported annotations. Edit/override these defaults or add further
+annotations in Rancher's form or `ingress.annotations`.
+
 Rancher's form supports Ingress annotations and a single-host TLS checkbox plus
 Secret-name field (`ingress.tlsEnabled`/`ingress.tlsSecretName`). Advanced users
 can instead configure `ingress.tls` in Values YAML; the two modes are mutually
