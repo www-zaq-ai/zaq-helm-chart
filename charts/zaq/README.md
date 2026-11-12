@@ -59,7 +59,10 @@ Prerelease Versions** to see test charts. The packaged `questions.yaml` provides
 common configuration fields; use Values YAML for advanced settings and review
 it before installation. Secret selectors select **names**, never secret values.
 
-The form includes editable Ingress annotations and an **Enable TLS** checkbox
+The form prefills editable NGINX annotations for `50M` body-size limits and
+`"3600"`-second ingress-nginx read/send timeouts. Override individual defaults
+or add other annotations; each controller applies the annotations it supports.
+The form also includes an **Enable TLS** checkbox
 with a **TLS Secret name** field. TLS uses the Ingress hostname automatically.
 Reference an existing namespace-local TLS Secret, or use an installed,
 configured cert-manager with an issuer annotation (for example,

@@ -48,6 +48,18 @@ def env(container):
 
 
 class ChartTests(unittest.TestCase):
+    def test_url_overrides_are_removed_and_image_defaults_are_preserved(self):
+        for key in ["userPortalBaseUrl", "litellmBaseUrl"]:
+            self.assertNotIn(key, DEFAULTS["app"])
+            self.assertNotIn(key, SCHEMA["properties"]["app"]["properties"])
+            for value in ["", "https://override.example.org"]:
+                with self.subTest(key=key, value=value), self.assertRaises(jsonschema.ValidationError):
+                    jsonschema.validate(dict(DEFAULTS, app=dict(DEFAULTS["app"], **{key: value})), SCHEMA)
+                self.assertNotEqual(render({"app": {key: value}}).returncode, 0)
+        spec = pod(documents(render()))
+        for container in spec.get("initContainers", []) + spec["containers"]:
+            self.assertTrue({"USER_PORTAL_BASE_URL", "LITELLM_BASE_URL"}.isdisjoint(env(container)))
+
     def test_values_schema(self):
         jsonschema.Draft7Validator.check_schema(SCHEMA)
         jsonschema.validate(DEFAULTS, SCHEMA)

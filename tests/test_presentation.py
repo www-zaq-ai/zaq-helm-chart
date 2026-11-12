@@ -121,8 +121,9 @@ class PresentationTests(unittest.TestCase):
                                                         (True, False, False), (True, True, True)]:
             values["ingress"].update(enabled=ingress_enabled, tlsEnabled=tls_enabled)
             self.assertEqual(visible(questions["ingress.tlsSecretName"], values), expected)
-        values["ingress"].update({"host": "form.example.org", "tlsSecretName": "future-tls",
-                                 "annotations": {"cert-manager.io/cluster-issuer": "letsencrypt-prod"}})
+        values["ingress"].update({"host": "form.example.org", "tlsSecretName": "future-tls"})
+        values["ingress"]["annotations"].update({"cert-manager.io/cluster-issuer": "letsencrypt-prod",
+                                                "nginx.ingress.kubernetes.io/proxy-send-timeout": "7200"})
         values["app"]["host"] = "form.example.org"
         jsonschema.validate(values, SCHEMA)
         docs = documents(render(values))

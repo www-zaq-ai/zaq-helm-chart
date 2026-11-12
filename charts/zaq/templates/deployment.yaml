@@ -87,14 +87,6 @@ spec:
             - name: WORKFLOWS_ENABLED
               value: {{ .Values.app.workflowsEnabled | quote }}
             {{- include "zaq.applicationSecretEnv" . | nindent 12 }}
-            {{- with .Values.app.userPortalBaseUrl }}
-            - name: USER_PORTAL_BASE_URL
-              value: {{ . | quote }}
-            {{- end }}
-            {{- with .Values.app.litellmBaseUrl }}
-            - name: LITELLM_BASE_URL
-              value: {{ . | quote }}
-            {{- end }}
           {{- range $name := list "startup" "readiness" "liveness" }}
           {{- $probe := index $.Values.probes $name }}
           {{- if $probe.enabled }}

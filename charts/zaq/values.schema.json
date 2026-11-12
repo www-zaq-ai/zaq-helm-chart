@@ -104,9 +104,7 @@
       "properties": {
         "host": {"type": "string", "minLength": 1, "pattern": "^[a-zA-Z0-9][a-zA-Z0-9.-]*$"},
         "encryptionKeyId": {"$ref": "#/definitions/nonempty"},
-        "workflowsEnabled": {"type": "boolean"},
-        "userPortalBaseUrl": {"type": "string", "pattern": "^(https?://[^ @]+)?$"},
-        "litellmBaseUrl": {"type": "string", "pattern": "^(https?://[^ @]+)?$"}
+        "workflowsEnabled": {"type": "boolean"}
       }
     },
     "preflight": {

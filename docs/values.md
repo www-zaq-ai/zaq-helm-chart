@@ -70,8 +70,6 @@ before migrating or renaming an existing installation.
 - `app.host`: `zaq.example.com`; public hostname, must match enabled Ingress.
 - `app.encryptionKeyId`: `v1`; encryption-key rotation metadata, not key material.
 - `app.workflowsEnabled`: `true`.
-- `app.userPortalBaseUrl`: `""`; use upstream production default unless set.
-- `app.litellmBaseUrl`: `""`; use upstream production default unless set.
 - `serviceAccount.create`: `true`; create a dedicated account.
 - `serviceAccount.name`: `""`; generated when creating; required when reusing.
 - `serviceAccount.annotations`: `{}`.
@@ -138,8 +136,13 @@ verify the actual existing claim supports it. No volume is shared with the init.
 - `service.port`: `4000`; ClusterIP Service port; container always uses `4000`.
 - `ingress.enabled`: `false`.
 - `ingress.className`: `""`; omit to use controller defaults.
-- `ingress.annotations`: `{}`; string key/value settings, editable in Rancher's
-  form; can include cert-manager issuer annotations.
+- `ingress.annotations`: editable string key/value settings in Rancher's form.
+  Defaults (additional annotations are merged; individual defaults can be
+  overridden):
+  - `nginx.ingress.kubernetes.io/proxy-body-size`: `"50M"`.
+  - `nginx.org/client-max-body-size`: `"50M"`.
+  - `nginx.ingress.kubernetes.io/proxy-read-timeout`: `"3600"` seconds.
+  - `nginx.ingress.kubernetes.io/proxy-send-timeout`: `"3600"` seconds.
 - `ingress.host`: `zaq.example.com`; must match `app.host` when enabled.
 - `ingress.path`: `/`.
 - `ingress.pathType`: `Prefix`; also `Exact` or `ImplementationSpecific`.

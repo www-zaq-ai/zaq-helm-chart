@@ -219,10 +219,14 @@ questions:
     show_if: ingress.enabled=true
     group: Networking
   - variable: ingress.annotations
-    default: {}
+    default:
+      nginx.ingress.kubernetes.io/proxy-body-size: "50M"
+      nginx.org/client-max-body-size: "50M"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     type: map[string]
     label: Ingress annotations
-    description: "Optional key/value settings, for example cert-manager.io/cluster-issuer: letsencrypt-prod. Requires an installed cert-manager and configured issuer for automatic certificates."
+    description: "Editable NGINX defaults: 50M body size and 3600-second ingress-nginx read/send timeouts. Add more key/value settings, for example cert-manager.io/cluster-issuer: letsencrypt-prod. Automatic certificates require installed cert-manager and a configured issuer."
     show_if: ingress.enabled=true
     group: Networking
   - variable: ingress.tlsEnabled
