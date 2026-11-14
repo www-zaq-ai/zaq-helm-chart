@@ -76,6 +76,22 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 
 {{- define "zaq.validate" -}}
 {{- $_ := include "zaq.appVersion" . -}}
+{{- $extraNames := dict -}}
+{{- range $name, $_ := .Values.app.extraEnv -}}
+  {{- include "zaq.validateExtraEnvName" $name -}}
+  {{- $_ := set $extraNames $name true -}}
+{{- end -}}
+{{- range .Values.app.extraEnvSecrets -}}
+  {{- include "zaq.validateExtraEnvName" .name -}}
+  {{- if hasKey $extraNames .name -}}{{- fail (printf "duplicate custom environment variable %s" .name) -}}{{- end -}}
+  {{- $_ := set $extraNames .name true -}}
+  {{- if eq .secretKeyRef.name $.Values.database.provisioning.existingSecret -}}
+    {{- fail "app.extraEnvSecrets cannot reference the configured DBA Secret" -}}
+  {{- end -}}
+  {{- if and (eq .secretKeyRef.name $.Values.secrets.existingSecret) (eq .secretKeyRef.key $.Values.secrets.keys.readerPassword) -}}
+    {{- fail "app.extraEnvSecrets cannot reference the runtime reader-password key" -}}
+  {{- end -}}
+{{- end -}}
 {{- if and .Values.preflight.enabled (le (int .Values.preflight.activeDeadlineSeconds) (int .Values.preflight.connectTimeoutSeconds)) -}}
   {{- fail "preflight.activeDeadlineSeconds must exceed preflight.connectTimeoutSeconds" -}}
 {{- end -}}
@@ -108,6 +124,27 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
   {{- if .Values.ingress.tls -}}{{- fail "ingress.tls cannot be combined with ingress.tlsEnabled=true; choose simple TLS or the advanced list" -}}{{- end -}}
 {{- end -}}
 {{- if hasKey .Values.persistence.annotations "helm.sh/resource-policy" -}}{{- fail "use persistence.retain instead of the resource-policy annotation" -}}{{- end -}}
+{{- end -}}
+
+{{- define "zaq.validateExtraEnvName" -}}
+{{- $reserved := list "DATABASE_URL" "PHX_SERVER" "PHX_HOST" "PORT" "POOL_SIZE" "ECTO_IPV6" "SECRET_KEY_BASE" "SYSTEM_CONFIG_ENCRYPTION_KEY" "SYSTEM_CONFIG_ENCRYPTION_KEY_ID" "WORKFLOWS_ENABLED" "STORAGE_VOLUMES" "STORAGE_VOLUMES_BASE" "INGESTION_VOLUMES" "INGESTION_VOLUMES_BASE" "MIX_ENV" "PATH" "HOME" "ENV" "BASH_ENV" "PYTHONPATH" "PYTHONHOME" -}}
+{{- if or (has . $reserved) (regexMatch "^(PG|ZAQ_|RELEASE_|ERL_|ELIXIR_|LD_)" .) -}}
+  {{- fail (printf "custom environment variable %s is reserved; use chart settings and managed Secret references" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "zaq.extraEnv" -}}
+{{- range $name, $value := .Values.app.extraEnv }}
+- name: {{ $name | quote }}
+  value: {{ $value | quote }}
+{{- end }}
+{{- range .Values.app.extraEnvSecrets }}
+- name: {{ .name | quote }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ .secretKeyRef.name | quote }}
+      key: {{ .secretKeyRef.key | quote }}
+{{- end }}
 {{- end -}}
 
 {{- define "zaq.databaseEnv" -}}

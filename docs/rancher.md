@@ -28,6 +28,12 @@ Secret names, hostname, Ingress class/TLS Secret, and StorageClass or PVC.
 The example names `longhorn` and `nginx` are not assumed to exist in every cluster.
 Never enter passwords or application keys into Helm values.
 
+**ZAQ v0.19.0 requires cluster-wide `CREATEROLE` for its application owner.**
+Review the [shared-server trust implications](deployment.md#owner-privilege-scope)
+with your DBA. For existing v0.18.0 deployments, arrange the documented external
+DBA maintenance before upgrading; Rancher's form and preflight do not repair
+that privilege contract automatically.
+
 The packaged chart includes a README for chart details and `questions.yaml` for
 Rancher's form. It offers namespace-local **existing Secret name** selectors and
 key-name mappings, not credential inputs; Secret creation remains external.
@@ -38,6 +44,34 @@ Use Values YAML for advanced settings and review it before installing. In
 particular, when switching from a selected StorageClass to an existing PVC,
 clear `persistence.storageClass` to `null`/unset: hiding a field does not clear
 its previous answer. To clear an existing PVC answer, use `existingClaim: ""`.
+
+### Additional application environment variables
+
+The **Application → Additional application environment variables** key/value
+editor sets `app.extraEnv`. Enter non-sensitive strings, for example
+`REQ_LLM_POOL_SIZE` → `8` (a supported v0.19.0 setting). Do not enter passwords,
+API tokens, or application keys here: form values are stored in Helm release
+records. Variables only affect behavior when the selected ZAQ image supports
+them; arbitrary names are not new ZAQ configuration features.
+
+For sensitive variables, use **Values YAML** with existing namespace-local
+Secret-key references, never credential values:
+
+```yaml
+app:
+  extraEnv:
+    REQ_LLM_POOL_SIZE: "8"
+  extraEnvSecrets:
+    - name: MY_API_TOKEN
+      secretKeyRef:
+        name: integration-secrets
+        key: api-token
+```
+
+Both sources reach only the ZAQ application container. Reserved database,
+startup, credentials, and storage names and duplicate custom names are rejected;
+see [rules and lifecycle](values.md#custom-environment-variables). Changing these
+settings rolls out the Pod; changing Secret contents alone requires a restart.
 
 ### Ingress annotations and TLS
 

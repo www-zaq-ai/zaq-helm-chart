@@ -51,6 +51,11 @@ README focused on the project overview, quick start, and documentation links.
 - Enforce minimum application version `0.18.0`, with no maximum. Normalize an
   optional leading `v` only for comparisons, never for changing the image tag.
 - Keep chart and application versions independent.
+- Match PostgreSQL role checks to the selected upstream release: v0.18.0 uses
+  an owner with NOCREATEROLE; v0.19.0 requires cluster-wide CREATEROLE. The reader
+  remains NOCREATEROLE. Document that broader owner privilege explicitly.
+  Existing v0.18.0 deployments require approved external DBA maintenance before
+  v0.19.0; never automate this repair or bypass receipts/ledgers in the chart.
 
 ## Code quality
 

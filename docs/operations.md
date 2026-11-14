@@ -115,6 +115,13 @@ container setting. **Neither enables Ecto/application database TLS**; see the
 
 ## Upgrade
 
+For **v0.18.0 → v0.19.0**, first obtain approval for the owner's new cluster-wide
+`CREATEROLE` privilege and arrange the
+[external DBA maintenance](deployment.md#upgrading-the-v0180-owner-contract).
+Stop ZAQ/migrators for that maintenance. Without it, normal v0.19.0 bootstrap
+validation refuses the old owner contract; preflight success does not detect
+or fix this. Do not bypass the guard or delete a receipt/ledger to proceed.
+
 1. Back up PostgreSQL, application files, and key-management records.
 2. Review ZAQ release notes and [migration/version compatibility](deployment.md#application-compatibility).
    Keep database/role identities and application encryption keys stable.

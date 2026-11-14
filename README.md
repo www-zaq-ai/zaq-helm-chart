@@ -7,7 +7,7 @@ This repository provides the Helm chart, deployment documentation, tests, and
 GitHub Actions workflows. It uses an existing PostgreSQL server and Kubernetes
 Secrets; it does not deploy PostgreSQL or generate credentials.
 
-Chart **0.1.0** targets ZAQ **v0.18.0**. Chart and application versions are
+Chart **0.1.0** targets ZAQ **v0.19.0**. Chart and application versions are
 independent.
 
 ## Prerequisites
@@ -15,6 +15,8 @@ independent.
 - Kubernetes **1.31+**, Helm v3, and access to the target cluster.
 - PostgreSQL **16+** with **pgvector >= 0.7.0**. Automatic database provisioning
   requires a PostgreSQL superuser; externally prepared databases are supported.
+- ZAQ v0.19.0 requires **cluster-wide `CREATEROLE`** for its application owner;
+  review [the security implications](docs/deployment.md#owner-privilege-scope).
 - A namespace with the required pre-existing database/application Secrets.
 - An existing StorageClass, cluster default, or compatible PVC.
 - For external HTTPS access: an Ingress controller, DNS, and TLS certificate.

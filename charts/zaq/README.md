@@ -4,6 +4,8 @@
 system for people, AI agents, and organizational knowledge. This chart deploys
 an isolated instance with persistent storage and optional HTTPS ingress, using
 an **external PostgreSQL server** and **pre-existing Kubernetes Secrets**.
+The default image is **ZAQ v0.19.0**; the minimum supported version remains
+**v0.18.0**. Chart and application versions are independent.
 
 ## Before installing
 
@@ -12,6 +14,9 @@ an **external PostgreSQL server** and **pre-existing Kubernetes Secrets**.
   The server may be outside Kubernetes or in another namespace.
 - For automatic bootstrap, a superuser DBA account. Otherwise prepare the
   database/owner externally and disable provisioning.
+- **ZAQ v0.19.0 requires cluster-wide `CREATEROLE` for the application owner.**
+  This is role-administration capability, not schema isolation. Review shared
+  PostgreSQL trust boundaries with the DBA before deploying.
 - Create a deployment Secret in the release namespace with `owner-password`,
   `secret-key-base`, and `encryption-key`; add `reader-password` for provisioning.
   The encryption key must represent exactly 32 bytes; Base64 is recommended.
@@ -76,6 +81,31 @@ For advanced TLS lists, use `ingress.tls` in Values YAML and keep
 rejected. Unchecking it leaves advanced-list TLS active if configured. The TLS
 Secret name alone is ignored with the checkbox off.
 
+## Additional application environment variables
+
+Rancher's **Application** group includes a non-sensitive key/value editor for
+`app.extraEnv`. For example, set `REQ_LLM_POOL_SIZE` to the string `"8"`.
+Only settings supported by your selected ZAQ image affect its behavior.
+Never enter credentials here: literal values are stored in Helm release records.
+For sensitive settings, use **Values YAML** with `app.extraEnvSecrets`:
+
+```yaml
+app:
+  extraEnvSecrets:
+    - name: MY_API_TOKEN
+      secretKeyRef:
+        name: integration-secrets
+        key: api-token
+```
+
+Secrets must already exist in the release namespace. Variables reach only ZAQ,
+not provisioning/preflight. Reserved chart/bootstrap names, duplicate variables,
+and references to the configured DBA Secret or runtime reader-password key are
+rejected. A missing custom Secret/key blocks application startup; preflight does
+not inspect these custom references. Configuration edits trigger a Pod rollout;
+Secret data changes alone need a restart. See the
+[full rules](https://github.com/www-zaq-ai/zaq-helm-chart/blob/main/docs/values.md#custom-environment-variables).
+
 ## Prerequisite preflight (optional, off by default)
 
 The `preflight.enabled` hook runs before install/upgrade. It references required
@@ -98,7 +128,12 @@ token/RBAC.
 
 ## Important deployment constraints
 
-- **ZAQ v0.18.0 does not enable TLS for its Ecto/application DB connection.**
+- When upgrading from v0.18.0, stop ZAQ/migrators and arrange the
+  [upstream DBA maintenance](https://github.com/www-zaq-ai/zaq/blob/v0.19.0/docs/database-setup.md#enable-owner-managed-logins-on-an-existing-deployment)
+  before normal v0.19.0 startup: approve/grant owner `CREATEROLE` and, when
+  `pg_search` is installed, `pdb` USAGE with grant option. Existing receipts
+  reject the old privilege contract; Helm never repairs it or bypasses ledgers.
+- **ZAQ v0.18.0/v0.19.0 do not enable TLS for the Ecto/application DB connection.**
   Preflight/init-container libpq TLS settings do not secure that connection.
   Use a trusted network; verified application DB TLS needs an upstream change.
 - ZAQ seeds an initial `admin`/`admin` Back Office account with mandatory password
