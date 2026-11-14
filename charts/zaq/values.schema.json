@@ -9,6 +9,7 @@
     "key": {"type": "string", "minLength": 1, "pattern": "^[a-zA-Z0-9._-]+$"},
     "identity": {"type": "string", "maxLength": 63, "pattern": "^([a-z_][a-z0-9_]{0,62})?$"},
     "annotations": {"type": "object", "additionalProperties": {"type": "string"}},
+    "envName": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
     "probe": {
       "type": "object", "additionalProperties": false,
       "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"],
@@ -100,11 +101,21 @@
       }
     },
     "app": {
-      "type": "object", "additionalProperties": false, "required": ["host", "encryptionKeyId", "workflowsEnabled"],
+      "type": "object", "additionalProperties": false, "required": ["host", "encryptionKeyId", "workflowsEnabled", "extraEnv", "extraEnvSecrets"],
       "properties": {
         "host": {"type": "string", "minLength": 1, "pattern": "^[a-zA-Z0-9][a-zA-Z0-9.-]*$"},
         "encryptionKeyId": {"$ref": "#/definitions/nonempty"},
-        "workflowsEnabled": {"type": "boolean"}
+        "workflowsEnabled": {"type": "boolean"},
+        "extraEnv": {"type": "object", "propertyNames": {"$ref": "#/definitions/envName"}, "additionalProperties": {"type": "string"}},
+        "extraEnvSecrets": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["name", "secretKeyRef"],
+          "properties": {
+            "name": {"$ref": "#/definitions/envName"},
+            "secretKeyRef": {"type": "object", "additionalProperties": false, "required": ["name", "key"], "properties": {
+              "name": {"$ref": "#/definitions/secretName"}, "key": {"$ref": "#/definitions/key"}
+            }}
+          }
+        }}
       }
     },
     "preflight": {

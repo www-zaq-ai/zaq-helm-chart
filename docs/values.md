@@ -16,7 +16,7 @@ Do not put credentials in any value.
 - `strategy.rollingUpdate`: optional native `maxSurge`/`maxUnavailable` settings;
   omit with `Recreate`.
 - `image.repository`: `ghcr.io/www-zaq-ai/zaq`.
-- `image.tag`: `v0.18.0`; preserved exactly for image pulling.
+- `image.tag`: `v0.19.0`; preserved exactly for image pulling.
 - `image.digest`: `""`; optional `sha256:…`, takes precedence over tag.
 - `image.pullPolicy`: `IfNotPresent`; also `Always` or `Never`.
 - `image.appVersion`: `""`; required full semantic version for digests or
@@ -41,7 +41,9 @@ contents or creates Secret resources. See
   servers; IPv6 literals are not supported by the upstream URL constructor.
 - `database.port`: `5432`.
 - `database.name`: `""`; release/namespace-derived database identity.
-- `database.owner`: `""`; release/namespace-derived owner login.
+- `database.owner`: `""`; release/namespace-derived owner login. ZAQ v0.19.0
+  requires cluster-wide `CREATEROLE`; it is not a schema-confined identity. See
+  [the privilege/upgrade contract](deployment.md#owner-privilege-scope).
 - `database.reader`: `""`; release/namespace-derived reader login.
 - `database.poolSize`: `10`; application Ecto connection pool size.
 - `database.ipv6`: `false`; set `ECTO_IPV6` for application DNS connections.
@@ -70,6 +72,12 @@ before migrating or renaming an existing installation.
 - `app.host`: `zaq.example.com`; public hostname, must match enabled Ingress.
 - `app.encryptionKeyId`: `v1`; encryption-key rotation metadata, not key material.
 - `app.workflowsEnabled`: `true`.
+- `app.extraEnv`: `{}`; non-sensitive environment variable name → string map,
+  editable in Rancher's form. Values such as numbers/booleans must be quoted.
+- `app.extraEnvSecrets`: `[]`; list of
+  `{name: MY_API_TOKEN, secretKeyRef: {name: integration-secrets, key: api-token}}`.
+  Names/keys only; Secrets must exist in the release namespace. Configure this
+  structured list in Values YAML, not the plain-text form map.
 - `serviceAccount.create`: `true`; create a dedicated account.
 - `serviceAccount.name`: `""`; generated when creating; required when reusing.
 - `serviceAccount.annotations`: `{}`.
@@ -94,6 +102,45 @@ Pod security context, container security contexts, and resource maps support
 native Kubernetes fields. Empty maps remove optional defaults through Helm
 merging only when their entries are explicitly cleared as appropriate. Token
 automounting is always disabled on the Pod and any chart-created ServiceAccount.
+
+## Custom environment variables
+
+Custom variables reach **only the application container**, never the provisioning
+init container or preflight. They do not change the image entrypoint. For
+portability, custom names must match `[A-Za-z_][A-Za-z0-9_]*`; values in `extraEnv`
+must be strings. Rendering uses no Helm `tpl` evaluation; Kubernetes' normal
+`$(VAR_NAME)` environment expansion still applies. Map order is deterministic.
+
+Use `extraEnv` only for non-sensitive settings. Its values are visible in Helm
+release records and rendered Deployment manifests. Sensitive values must use
+individual existing `secretKeyRef` entries via `extraEnvSecrets`; no `envFrom`,
+Secret generation, optional keys, or cross-namespace references are supported.
+A missing custom Secret/key blocks application startup (Pod events explain the
+missing reference); preflight intentionally does not check custom references.
+ZAQ boot remains authoritative for supported variable names and valid contents.
+
+Duplicate names within the Secret list or between the two sources are rejected.
+The following names are reserved in **both** sources:
+
+- Prefixes `PG`, `ZAQ_`, `RELEASE_`, `ERL_`, `ELIXIR_`, and `LD_`.
+- `DATABASE_URL`, `PHX_SERVER`, `PHX_HOST`, `PORT`, `POOL_SIZE`, `ECTO_IPV6`,
+  `SECRET_KEY_BASE`, `SYSTEM_CONFIG_ENCRYPTION_KEY`,
+  `SYSTEM_CONFIG_ENCRYPTION_KEY_ID`, and `WORKFLOWS_ENABLED`.
+- `STORAGE_VOLUMES`, `STORAGE_VOLUMES_BASE`, `INGESTION_VOLUMES`, and
+  `INGESTION_VOLUMES_BASE`.
+- `MIX_ENV`, `PATH`, `HOME`, `ENV`, `BASH_ENV`, `PYTHONPATH`, and `PYTHONHOME`.
+
+Use the dedicated chart settings/managed Secret mappings for these instead.
+Custom references to the configured DBA Secret or the configured runtime
+reader-password key are also rejected, even under an alias and with provisioning
+disabled. The chart cannot inspect Secret contents or detect copied DBA
+credentials in another Secret; operators must keep those out of custom inputs.
+This configuration interface is not a security boundary against release admins.
+
+Changing either custom environment configuration changes the Pod template and
+causes a rollout. Rotating the data of an externally referenced Secret alone does
+not update existing container environment variables: restart the application
+Pods after external rotation. This does not rotate database logins.
 
 ## Prerequisite preflight
 

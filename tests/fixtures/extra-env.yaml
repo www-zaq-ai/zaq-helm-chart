@@ -1,0 +1,12 @@
+app:
+  extraEnv:
+    REQ_LLM_POOL_SIZE: "8"
+    CUSTOM_FEATURE: "false"
+    CUSTOM_TEXT: "literal {{ .Release.Name }} and $(NOT_EXPANDED)"
+  extraEnvSecrets:
+    - name: MY_API_TOKEN
+      secretKeyRef:
+        name: integration-secrets
+        key: api-token
+preflight:
+  enabled: true

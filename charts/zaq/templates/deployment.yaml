@@ -87,6 +87,7 @@ spec:
             - name: WORKFLOWS_ENABLED
               value: {{ .Values.app.workflowsEnabled | quote }}
             {{- include "zaq.applicationSecretEnv" . | nindent 12 }}
+            {{- include "zaq.extraEnv" . | nindent 12 }}
           {{- range $name := list "startup" "readiness" "liveness" }}
           {{- $probe := index $.Values.probes $name }}
           {{- if $probe.enabled }}

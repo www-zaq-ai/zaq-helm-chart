@@ -198,7 +198,7 @@ class ChartTests(unittest.TestCase):
         self.assertNotEqual(render({"image": {"digest": digest}}).returncode, 0)
         docs = documents(render({"image": {"digest": digest, "appVersion": "0.18.0"}}))
         self.assertTrue(pod(docs)["containers"][0]["image"].endswith("@" + digest))
-        for image in [{"appVersion": "0.19.0"}, {"tag": "custom", "appVersion": "0.17.0"},
+        for image in [{"tag": "v0.18.0", "appVersion": "0.19.0"}, {"tag": "custom", "appVersion": "0.17.0"},
                       {"tag": "custom", "appVersion": "banana"}]:
             with self.subTest(image=image):
                 self.assertNotEqual(render({"image": image}).returncode, 0)

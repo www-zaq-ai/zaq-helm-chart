@@ -7,7 +7,7 @@ strategy:
   type: Recreate
 image:
   repository: ghcr.io/www-zaq-ai/zaq
-  tag: v0.18.0
+  tag: v0.19.0
   # Optional immutable digest. A nonempty digest takes precedence over the tag.
   digest: ""
   pullPolicy: IfNotPresent
@@ -57,6 +57,12 @@ app:
   host: zaq.example.com
   encryptionKeyId: v1
   workflowsEnabled: true
+  # Non-sensitive string values only; exposed as a key/value map in Rancher.
+  # Application container only. Chart-managed/bootstrap settings are reserved.
+  extraEnv: {}
+  # Sensitive settings: individual existing Secret keys in the release namespace.
+  # Example: [{name: MY_API_TOKEN, secretKeyRef: {name: integration-secrets, key: api-token}}]
+  extraEnvSecrets: []
 # Optional read-only prerequisite hook. Never provisions or runs ZAQ/migrations.
 preflight:
   enabled: false

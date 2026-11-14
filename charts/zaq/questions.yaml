@@ -27,7 +27,7 @@ questions:
     default: ""
     type: string
     label: Application-owner login name
-    description: Empty derives an isolated login name. This is a username, never a password.
+    description: Empty derives a unique login name. ZAQ v0.19.0 requires cluster-wide CREATEROLE for this owner; it is not confined to this database. This is a username, never a password.
     group: Database
   - variable: database.reader
     default: ""
@@ -38,8 +38,8 @@ questions:
   - variable: database.provisioning.enabled
     default: true
     type: boolean
-    label: Provision the database and restricted logins
-    description: Requires a superuser DBA. Disable for a DBA-prepared database; no PostgreSQL server is installed by this chart.
+    label: Provision the database and owner/reader logins
+    description: Requires a superuser DBA. ZAQ v0.19.0 grants the owner cluster-wide CREATEROLE, not the reader. Existing v0.18.0 deployments need reviewed external DBA maintenance before upgrading. Disable for a DBA-prepared database; no PostgreSQL server is installed by this chart.
     group: Database
   - variable: database.provisioning.existingSecret
     default: zaq-dba
@@ -83,7 +83,7 @@ questions:
     type: enum
     options: [disable, allow, prefer, require]
     label: Provisioning libpq TLS mode
-    description: Applies to the init container only. ZAQ v0.18.0 does not enable Ecto/application database TLS.
+    description: Applies to the init container only. ZAQ v0.19.0 does not enable Ecto/application database TLS.
     show_if: database.provisioning.enabled=true
     group: Database
   - variable: secrets.existingSecret
@@ -198,6 +198,12 @@ questions:
     label: Public ZAQ hostname
     description: Must match the Ingress hostname if Ingress is enabled. Restrict access until the initial administrator password has been changed.
     group: Networking
+  - variable: app.extraEnv
+    default: {}
+    type: map[string]
+    label: Additional application environment variables
+    description: Non-sensitive string values only, for example REQ_LLM_POOL_SIZE=50. Never enter passwords, tokens or keys; use app.extraEnvSecrets in Values YAML for existing Secret-key references. Reserved chart/bootstrap names are rejected. Changes roll out the application Pod, not the provisioning/preflight containers.
+    group: Application
   - variable: ingress.enabled
     default: false
     type: boolean

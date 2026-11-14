@@ -19,7 +19,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CHART = Path(os.environ.get("ZAQ_CHART_PATH", ROOT / "charts" / "zaq"))
-APP_IMAGE = "ghcr.io/www-zaq-ai/zaq@sha256:9bf0f9ae2299e777b56564992691eafb119d0ccba9f6d40696a1efe63a81097a"
+APP_IMAGE = "ghcr.io/www-zaq-ai/zaq@sha256:b038a32e9d0ecfa9b88c6594884acb6d37d1f1c57dfaf82656904b3b45d3a7fc"
+PREVIOUS_APP_IMAGE = "ghcr.io/www-zaq-ai/zaq@sha256:9bf0f9ae2299e777b56564992691eafb119d0ccba9f6d40696a1efe63a81097a"
 POSTGRES_IMAGE = "pgvector/pgvector@sha256:3e8b3adfd27b5707128f60956f62a793c3c9326ea8cfaf0eab7adccb5d700b21"
 NODE_IMAGE = "kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"
 NAMESPACE = "chart-test"
@@ -65,7 +66,9 @@ def main():
         def sql(text, role="dba", database="postgres", check=True):
             roles = {"dba": ("postgres", "POSTGRES_PASSWORD"),
                      "owner": ("integration_owner", "OWNER_PASSWORD"),
-                     "reader": ("integration_reader", "READER_PASSWORD")}
+                     "reader": ("integration_reader", "READER_PASSWORD"),
+                     "upgrade_owner": ("upgrade_owner", "OWNER_PASSWORD"),
+                     "upgrade_reader": ("upgrade_reader", "READER_PASSWORD")}
             user, password_env = roles[role]
             script = (f'export PGPASSWORD="${password_env}"; '
                       f'exec psql -X -h 127.0.0.1 -U {user} -d {database} -At -v ON_ERROR_STOP=1')
@@ -120,6 +123,13 @@ def main():
             )
             run(kubectl + ["exec", "deployment/" + release + "-zaq", "-c", "zaq", "--", "python3", "-c", script])
 
+        def custom_environment(release, marker):
+            # Pass ephemeral expected token over stdin, never in command args/logs.
+            script = ("import os,sys; assert os.environ['MY_API_TOKEN']==sys.stdin.read(); "
+                      "assert os.environ['REQ_LLM_POOL_SIZE']=='8'; "
+                      f"assert os.environ['CHART_TEST_SETTING']=={marker!r}")
+            run(kubectl + ["exec", "-i", "deployment/" + release + "-zaq", "-c", "zaq", "--", "python3", "-c", script], custom_token)
+
         try:
             print("Creating disposable Kind cluster", flush=True)
             run(["kind", "create", "cluster", "--name", cluster, "--image", NODE_IMAGE,
@@ -132,6 +142,9 @@ def main():
                        "secret-key-base": secrets.token_hex(64),
                        "encryption-key": base64.b64encode(secrets.token_bytes(32)).decode()}
             sensitive_values = [dba_password, *runtime.values()]
+            custom_token = secrets.token_hex(32)
+            sensitive_values.append(custom_token)
+            secret("integration-extra", {"api-token": custom_token})
             secret("zaq-dba", {"username": "postgres", "password": dba_password})
             secret("zaq-runtime", runtime)
             # The external DB's own disposable test Pod needs separate namespace-local refs.
@@ -164,9 +177,11 @@ def main():
             run(helm + ["uninstall", "mock", "--wait"])
             assert not [p for p in get("pvc")["items"] if p["metadata"]["name"] == "mock-zaq"]
 
-            values = {"image": {"digest": APP_IMAGE.split("@")[1], "appVersion": "0.18.0"},
+            values = {"image": {"digest": APP_IMAGE.split("@")[1], "appVersion": "0.19.0"},
                       "database": {"host": "postgresql.database-test.svc.cluster.local", "name": "integration_zaq", "owner": "integration_owner", "reader": "integration_reader"},
                       "preflight": {"enabled": True},
+                      "app": {"extraEnv": {"REQ_LLM_POOL_SIZE": "8", "CHART_TEST_SETTING": "initial"},
+                              "extraEnvSecrets": [{"name": "MY_API_TOKEN", "secretKeyRef": {"name": "integration-extra", "key": "api-token"}}]},
                       "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}},
                       "persistence": {"size": "1Gi"}}
             # Separate image download time from the intentionally short deadline cases.
@@ -233,14 +248,23 @@ def main():
             assert not run(kubectl + ["get", "secret", "externally-managed-tls", "--ignore-not-found", "-o", "name"]).stdout
             assert not run(kubectl + ["get", "job", "real-zaq-preflight", "--ignore-not-found", "-o", "name"]).stdout
             health("real")
+            custom_environment("real", "initial")
+            spec = get("deployment", "real-zaq")["spec"]["template"]["spec"]
+            assert not {"MY_API_TOKEN", "REQ_LLM_POOL_SIZE", "CHART_TEST_SETTING"}.intersection(
+                e["name"] for e in spec["initContainers"][0]["env"])
+            records = run(helm + ["get", "manifest", "real"]).stdout + run(helm + ["get", "values", "real"]).stdout
+            assert custom_token not in records, "Custom credential leaked into Helm release records"
             assert sql("SELECT count(*) FROM public.schema_migrations;", "owner", "integration_zaq").stdout.strip() != "0"
             assert sql("SELECT count(*) FROM public.users;", "reader", "integration_zaq").returncode == 0
             sql("CREATE TABLE public.chart_acl_test (id integer); INSERT INTO public.chart_acl_test VALUES (1);",
                 "owner", "integration_zaq")
             assert sql("SELECT id FROM public.chart_acl_test;", "reader", "integration_zaq").stdout.strip() == "1"
             assert sql("INSERT INTO public.chart_acl_test VALUES (2);", "reader", "integration_zaq", check=False).returncode != 0
-            flags = sql("SELECT rolsuper OR rolcreatedb OR rolcreaterole FROM pg_roles WHERE rolname IN ('integration_owner','integration_reader');").stdout.splitlines()
-            assert flags == ["f", "f"], flags
+            flags = sql("SELECT rolname,rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls,rolinherit "
+                        "FROM pg_roles WHERE rolname IN ('integration_owner','integration_reader') ORDER BY rolname;").stdout.splitlines()
+            # v0.19.0 explicitly requires cluster-wide CREATEROLE for the owner;
+            # every other administrative flag and all reader flags remain denied.
+            assert flags == ["integration_owner|f|f|t|f|f|f", "integration_reader|f|f|f|f|f|f"], flags
             receipt = sql("SELECT count(*) FROM zaq_bootstrap.receipt;", database="integration_zaq").stdout.strip()
             assert receipt == "1"
             app_only_check = copy.deepcopy(values)
@@ -288,12 +312,16 @@ def main():
 
             print("Testing app-only upgrade and uninstall retention", flush=True)
             values["database"]["provisioning"] = {"enabled": False}
+            values["app"]["extraEnv"]["CHART_TEST_SETTING"] = "updated"
+            previous_pod = next(p["metadata"]["uid"] for p in get("pods")["items"] if p["metadata"]["labels"].get("app.kubernetes.io/instance") == "real")
             values["ingress"]["tlsEnabled"] = False
             values["ingress"]["annotations"]["nginx.ingress.kubernetes.io/proxy-read-timeout"] = "7200"
             install("real", values, upgrade=True)
             assert "tls" not in get("ingress", "real-zaq")["spec"]
             assert get("ingress", "real-zaq")["metadata"]["annotations"]["nginx.ingress.kubernetes.io/proxy-read-timeout"] == "7200"
             health("real")
+            custom_environment("real", "updated")
+            assert previous_pod not in [p["metadata"]["uid"] for p in get("pods")["items"]]
             run(helm + ["uninstall", "real", "--wait"])
             assert not get("ingresses")["items"]
             get("pvc", "real-zaq")
@@ -305,6 +333,51 @@ def main():
             health("real")
             run(helm + ["uninstall", "real", "--wait"])
             get("pvc", "real-zaq")
+            print("Testing missing custom Secret key blocks application startup", flush=True)
+            missing_env = copy.deepcopy(values)
+            missing_env["persistence"] = {"enabled": False}
+            missing_env["app"]["extraEnvSecrets"][0]["secretKeyRef"]["key"] = "absent"
+            install("missing-env", missing_env, expect_failure=True)
+            missing_pod = next(p for p in get("pods")["items"] if p["metadata"]["labels"].get("app.kubernetes.io/instance") == "missing-env")
+            assert missing_pod["status"]["containerStatuses"][0]["state"]["waiting"]["reason"] == "CreateContainerConfigError"
+            run(helm + ["uninstall", "missing-env", "--wait"])
+
+            print("Testing real v0.18.0 to v0.19.0 migration/receipt upgrade with persistent data", flush=True)
+            upgrade_values = copy.deepcopy(values)
+            upgrade_values["image"] = {"tag": "v0.18.0", "digest": PREVIOUS_APP_IMAGE.split("@")[1], "appVersion": "0.18.0"}
+            upgrade_values["database"].update({"name": "upgrade_zaq", "owner": "upgrade_owner", "reader": "upgrade_reader", "provisioning": {"enabled": True}})
+            upgrade_values["persistence"] = {"size": "1Gi", "retain": False}
+            install("upgrade", upgrade_values)
+            health("upgrade")
+            sql("CREATE TABLE public.chart_upgrade_test (id integer); INSERT INTO public.chart_upgrade_test VALUES (42);", "upgrade_owner", "upgrade_zaq")
+            run(kubectl + ["exec", "deployment/upgrade-zaq", "-c", "zaq", "--", "python3", "-c",
+                           "from pathlib import Path; Path('/zaq/volumes/chart-upgrade').write_text('retained')"])
+            before_passwords = sql("SELECT rolname,rolpassword FROM pg_authid WHERE rolname IN ('upgrade_owner','upgrade_reader') ORDER BY rolname;").stdout
+            before_migrations = set(sql("SELECT version FROM public.schema_migrations;", database="upgrade_zaq").stdout.splitlines())
+            upgrade_values["image"] = {"tag": "v0.19.0", "digest": APP_IMAGE.split("@")[1], "appVersion": "0.19.0"}
+            print("Verifying v0.19.0 refuses an unmigrated owner privilege contract", flush=True)
+            install("upgrade", upgrade_values, upgrade=True, expect_failure=True)
+            assert sql("SELECT rolcreaterole FROM pg_roles WHERE rolname='upgrade_owner';").stdout.strip() == "f"
+            assert before_migrations == set(sql("SELECT version FROM public.schema_migrations;", database="upgrade_zaq").stdout.splitlines())
+            assert get("deployment", "upgrade-zaq")["status"].get("availableReplicas", 0) == 0
+            # Explicit, approved DBA maintenance in this disposable test only.
+            # Production must follow upstream's external DBA procedure; the chart
+            # never repairs roles or bypasses receipt/migration-ledger validation.
+            run(kubectl + ["scale", "deployment/upgrade-zaq", "--replicas=0"])
+            run(kubectl + ["wait", "--for=delete", "pod", "-l", "app.kubernetes.io/instance=upgrade", "--timeout=120s"])
+            sql("ALTER ROLE upgrade_owner CREATEROLE;")
+            install("upgrade", upgrade_values, upgrade=True)
+            health("upgrade")
+            custom_environment("upgrade", "updated")
+            assert sql("SELECT id FROM public.chart_upgrade_test;", "upgrade_reader", "upgrade_zaq").stdout.strip() == "42"
+            assert sql("SELECT count(*) FROM zaq_bootstrap.receipt;", database="upgrade_zaq").stdout.strip() == "1"
+            assert before_passwords == sql("SELECT rolname,rolpassword FROM pg_authid WHERE rolname IN ('upgrade_owner','upgrade_reader') ORDER BY rolname;").stdout
+            after_migrations = set(sql("SELECT version FROM public.schema_migrations;", database="upgrade_zaq").stdout.splitlines())
+            assert before_migrations < after_migrations, "Upgrade must preserve ledger and apply new migrations"
+            run(kubectl + ["exec", "deployment/upgrade-zaq", "-c", "zaq", "--", "python3", "-c",
+                           "from pathlib import Path; assert Path('/zaq/volumes/chart-upgrade').read_text()=='retained'"])
+            run(helm + ["uninstall", "upgrade", "--wait"])
+            assert not run(kubectl + ["get", "pvc", "upgrade-zaq", "--ignore-not-found", "-o", "name"]).stdout
             assert not [d for d in get("deployments")["items"] if d["metadata"]["name"] != "postgres"]
             print("Kind integration passed: mock and real installations, ACLs, restart, failure gates, upgrade, reuse, uninstall", flush=True)
         except Exception:

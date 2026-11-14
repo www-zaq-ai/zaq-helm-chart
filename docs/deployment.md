@@ -46,8 +46,8 @@ packages must already be installed on the server; the init container cannot
 install server-side operating-system packages.
 
 Read the upstream
-[deployment](https://github.com/www-zaq-ai/zaq/blob/v0.18.0/docs/operations/deployment.md)
-and [database bootstrap](https://github.com/www-zaq-ai/zaq/blob/v0.18.0/docs/database-setup.md)
+[deployment](https://github.com/www-zaq-ai/zaq/blob/v0.19.0/docs/operations/deployment.md)
+and [database bootstrap](https://github.com/www-zaq-ai/zaq/blob/v0.19.0/docs/database-setup.md)
 contracts. This chart does not deploy a PostgreSQL server, create credentials,
 create StorageClasses, or implement billing or Customer Portal integration.
 
@@ -74,6 +74,38 @@ An existing migrated database without a matching receipt requires the upstream
 explicit adoption/repair procedure or provisioning-disabled deployment. Do not
 delete receipts or migration ledgers to force bootstrap.
 
+### Owner privilege scope
+
+**ZAQ v0.19.0 requires `CREATEROLE` for the application owner. This permission
+is cluster-wide, not confined to the ZAQ database.** Treat its credentials as
+role-administration credentials, not a schema-isolated account. Separate ZAQ
+databases/logins on a shared server do not sandbox this capability. Obtain
+database-operator approval and evaluate the server's trust boundary before
+deploying; the chart does not provision a separate PostgreSQL server.
+
+The owner remains `NOSUPERUSER`, `NOCREATEDB`, `NOREPLICATION`, `NOBYPASSRLS`,
+and `NOINHERIT`. The reader also remains `NOCREATEROLE`. v0.19.0 permits the
+owner's ADMIN-only memberships in non-administrative roles without inheritance
+or SET ROLE access; those validation checks detect drift, not arbitrary owner
+SQL. See the [upstream privilege contract](https://github.com/www-zaq-ai/zaq/blob/v0.19.0/docs/database-setup.md#owner-managed-logins-and-schema-access).
+v0.18.0 instead uses an owner with `NOCREATEROLE`.
+
+### Upgrading the v0.18.0 owner contract
+
+An existing v0.18.0 owner normally has `NOCREATEROLE`. v0.19.0's receipt check
+refuses that state before migrations; restarting/bootstrap does not silently
+repair it. Provisioning-disabled deployments need the same reviewed privileges
+prepared externally, not a bypass of the application contract.
+
+Before upgrading, back up, stop ZAQ and migrators, and have the DBA follow
+the [upstream existing-deployment procedure](https://github.com/www-zaq-ai/zaq/blob/v0.19.0/docs/database-setup.md#enable-owner-managed-logins-on-an-existing-deployment):
+review the correct owner and explicitly grant it `CREATEROLE`. With `pg_search`
+installed, the DBA must also review/grant `pdb` schema USAGE with grant option.
+Then deploy the new image and let the normal provisioning validation and
+migrations run. These maintenance steps stay external to Helm and do not rotate
+passwords, delete ledgers, reset receipts, or re-bootstrap a migrated database.
+Read-only preflight checks connectivity, not this privilege contract.
+
 ### Identity and replica safety
 
 Empty `database.name`, `database.owner`, and `database.reader` derive stable
@@ -90,8 +122,9 @@ downtime but avoids overlapping first-run provisioning and RWO volume attachment
 
 ### Database transport limitation
 
-**The released v0.18.0 configuration does not enable TLS for ZAQ's Ecto database
-connection.** Its generated owner URL does not configure certificate validation.
+**The released v0.18.0 and v0.19.0 configurations do not enable TLS for ZAQ's
+Ecto database connection.** The generated owner URL does not configure
+certificate validation.
 `database.provisioning.sslMode` affects only the init container's libpq client
 and does not secure the application connection.
 
@@ -221,6 +254,14 @@ data sources in Back Office. A mounted PVC does not automatically expose its roo
 or create a `documents` data source. See the upstream deployment guide.
 
 ## Application compatibility
+
+The default image is **v0.19.0**. The integration suite covers fresh installation
+and verifies refusal of a v0.18.0 owner until the documented DBA maintenance,
+then tests migration with persisted database rows and files. This does not
+validate every populated production database: back up
+first and test against a disposable restored copy. Never bypass bootstrap
+receipts or migration ledgers to force an upgrade; Helm rollback does not
+reverse database migrations.
 
 Minimum ZAQ version: **0.18.0**, annotated in `Chart.yaml`. No maximum is imposed.
 `v0.18.0` and `0.18.0` compare identically, but the actual tag is not rewritten.

@@ -31,13 +31,23 @@ The test-release workflow uses this to test its packaged prerelease.
 
 Unit tests cover rendering, schema failures, identity isolation, Secret wiring,
 probes, storage, security, versions, and release tags. The schema matrix covers
-default, advanced-list and Rancher-form TLS Ingress, custom, and
+default, advanced-list and Rancher-form TLS Ingress, custom environment/Secret
+references, custom, and
 existing-database/PVC configurations across Kubernetes 1.31–1.34.
 
 Integration separately tests a mock deployment and real ZAQ with disposable
 PostgreSQL, ephemeral Secrets, ACLs/default grants, restart validation, credential
 and migration failures, upgrades, PVC reuse, and uninstall retention. Mock
 readiness alone is not proof that ZAQ deploys successfully.
+Real ZAQ tests use the pinned v0.19.0 image and separately upgrade a pinned
+v0.18.0 deployment, preserving database rows, password hashes, migration ledgers,
+bootstrap receipts, and PVC files. Tests explicitly expect owner `CREATEROLE`
+only in v0.19.0 while denying other administrative flags and keeping the reader
+restricted. The upgrade test first verifies old-owner refusal, then performs
+the upstream DBA maintenance only in its disposable database before retrying.
+No corresponding repair logic is shipped in Helm. Environment tests check application-only
+delivery, Secret-key injection without values in Helm records, missing custom
+keys blocking startup, and a rollout when a non-sensitive value changes.
 Ingress integration checks API-accepted annotations/TLS configuration, removing
 TLS on upgrade, and resource cleanup. It installs no Ingress controller or
 cert-manager, so it does not verify certificate issuance or end-to-end HTTPS.
