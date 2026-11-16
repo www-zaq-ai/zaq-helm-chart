@@ -110,8 +110,11 @@ values can pass preflight presence checks and still correctly fail application
 startup. Preflight success cannot prevent a later connectivity failure.
 
 `preflight.sslMode` configures only this libpq client, separately from the init
-container setting. **Neither enables Ecto/application database TLS**; see the
-[released-image limitation](deployment.md#database-transport-limitation).
+container setting. **Neither enables Ecto/application database TLS**. Dedicated
+`database.tls` settings support a fixed image containing PR #943; see
+[database TLS](database-tls.md). The selected CA bundle is shared, but the modes
+remain independent. CA Secret rotation needs a coordinated Pod restart; there
+is no Secret-content lookup or automatic checksum rollout.
 
 ## Upgrade
 

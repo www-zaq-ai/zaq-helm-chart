@@ -45,6 +45,21 @@ particular, when switching from a selected StorageClass to an existing PVC,
 clear `persistence.storageClass` to `null`/unset: hiding a field does not clear
 its previous answer. To clear an existing PVC answer, use `existingClaim: ""`.
 
+### Application database TLS
+
+The **Database TLS** group selects verified application TLS and an optional
+existing CA Secret/key. You may select the same Secret used for DBA credentials:
+only its CA key is projected into the application, not its username/password.
+The CA selector is independent so provisioning-disabled deployments can use it.
+Empty means system trust. Enter a PEM CA key name, never certificate contents,
+private keys, or credentials.
+
+First select a fixed image containing PR #943 in Values YAML and confirm
+`image.databaseTlsSupported`; published v0.19.0 lacks support. The checkbox does
+not magically add TLS to that image. Provisioning and preflight retain their
+separate libpq mode controls; choose `verify-full` for verified connections.
+See [database TLS](database-tls.md) for an example and compatibility defaults.
+
 ### Additional application environment variables
 
 The **Application → Additional application environment variables** key/value

@@ -86,7 +86,7 @@ class PreflightTests(unittest.TestCase):
     def test_script_is_read_only_and_never_logs_credentials_or_psql_errors(self):
         script = self.job()["spec"]["template"]["spec"]["containers"][0]["command"][2]
         inputs = {"PATH": os.environ["PATH"], "PGHOST": "remote", "PGPORT": "5432", "PGDATABASE": "postgres",
-                  "PGSSLMODE": "prefer", "PGCONNECT_TIMEOUT": "3", "PGUSER": "dba", "PGPASSWORD": "dba-sensitive",
+                  "PGSSLMODE": "verify-full", "PGSSLROOTCERT": "/etc/zaq/database-ca/ca.crt", "PGCONNECT_TIMEOUT": "3", "PGUSER": "dba", "PGPASSWORD": "dba-sensitive",
                   "ZAQ_OWNER": "owner", "ZAQ_OWNER_PASSWORD": "owner-sensitive", "SECRET_KEY_BASE": "key-sensitive"}
         for result in [subprocess.CompletedProcess([], 0, "1\n", ""),
                        subprocess.CompletedProcess([], 1, "", "error: dba-sensitive owner-sensitive key-sensitive"),
@@ -105,5 +105,6 @@ class PreflightTests(unittest.TestCase):
                 self.assertEqual(run.call_args.kwargs["stderr"], subprocess.DEVNULL)
                 self.assertNotIn("SECRET_KEY_BASE", run.call_args.kwargs["env"])
                 self.assertNotIn("ZAQ_OWNER_PASSWORD", run.call_args.kwargs["env"])
+                self.assertEqual(run.call_args.kwargs["env"]["PGSSLROOTCERT"], inputs["PGSSLROOTCERT"])
                 for secret in ["dba-sensitive", "owner-sensitive", "key-sensitive"]:
                     self.assertNotIn(secret, output.getvalue())

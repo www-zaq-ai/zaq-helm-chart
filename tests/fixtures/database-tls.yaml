@@ -1,0 +1,16 @@
+image:
+  # Offline fixture: operator-attested fixed/backported image, not a real digest.
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  appVersion: "0.19.0"
+  databaseTlsSupported: true
+database:
+  tls:
+    enabled: true
+    ca:
+      existingSecret: zaq-dba
+      key: ca.crt
+  provisioning:
+    sslMode: verify-full
+preflight:
+  enabled: true
+  sslMode: verify-full

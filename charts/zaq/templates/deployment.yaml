@@ -49,13 +49,17 @@ spec:
             {{- toYaml .Values.database.provisioning.resources | nindent 12 }}
           env:
             {{- include "zaq.databaseEnv" . | nindent 12 }}
+            {{- include "zaq.applicationTlsEnv" . | nindent 12 }}
             - name: PGDATABASE
               value: {{ .Values.database.provisioning.maintenanceDatabase | quote }}
-            - name: PGSSLMODE
-              value: {{ .Values.database.provisioning.sslMode | quote }}
+            {{- include "zaq.libpqTlsEnv" (dict "root" . "mode" .Values.database.provisioning.sslMode) | nindent 12 }}
             - name: PGCONNECT_TIMEOUT
               value: "10"
             {{- include "zaq.provisioningSecretEnv" . | nindent 12 }}
+          {{- if .Values.database.tls.ca.existingSecret }}
+          volumeMounts:
+            {{- include "zaq.databaseCaMount" . | nindent 12 }}
+          {{- end }}
       {{- end }}
       containers:
         - name: zaq
@@ -70,6 +74,7 @@ spec:
               protocol: TCP
           env:
             {{- include "zaq.databaseEnv" . | nindent 12 }}
+            {{- include "zaq.applicationTlsEnv" . | nindent 12 }}
             - name: PHX_SERVER
               value: "true"
             - name: PORT
@@ -109,6 +114,9 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /zaq/volumes
+            {{- if and .Values.database.tls.enabled .Values.database.tls.ca.existingSecret }}
+            {{- include "zaq.databaseCaMount" . | nindent 12 }}
+            {{- end }}
       volumes:
         - name: data
           {{- if .Values.persistence.enabled }}
@@ -117,6 +125,9 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if and .Values.database.tls.ca.existingSecret (or .Values.database.tls.enabled .Values.database.provisioning.enabled) }}
+        {{- include "zaq.databaseCaVolume" . | nindent 8 }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

@@ -135,6 +135,12 @@ change; the chart deliberately does not pretend that `PGSSLMODE` configures Ecto
 Use a direct primary endpoint: poolers/load-balanced replicas can violate ZAQ's
 bootstrap server identity checks.
 
+The chart also has dedicated application TLS and CA-Secret settings for a fixed
+image containing ZAQ PR #943. They do not add TLS support to an older image or
+override provisioning's independent libpq settings. See
+[database TLS](database-tls.md) for image gating, verified connections, and
+CA-only projection from an existing DBA Secret.
+
 ## Pre-existing Secrets
 
 All Secrets must be in the release namespace. Names and key mappings are

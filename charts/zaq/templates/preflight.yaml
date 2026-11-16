@@ -50,6 +50,8 @@ spec:
               connection["PGUSER"] = os.environ.get("PGUSER", os.environ["ZAQ_OWNER"])
               connection["PGPASSWORD"] = os.environ.get("PGPASSWORD", os.environ["ZAQ_OWNER_PASSWORD"])
               connection["PATH"] = os.environ["PATH"]
+              if "PGSSLROOTCERT" in os.environ:
+                  connection["PGSSLROOTCERT"] = os.environ["PGSSLROOTCERT"]
               try:
                   result = subprocess.run(
                       ["psql", "-X", "--no-password", "-qAt", "-v", "ON_ERROR_STOP=1",
@@ -75,10 +77,17 @@ spec:
               {{- else }}
               value: {{ include "zaq.databaseIdentity" (dict "root" . "kind" "name") | quote }}
               {{- end }}
-            - name: PGSSLMODE
-              value: {{ .Values.preflight.sslMode | quote }}
+            {{- include "zaq.libpqTlsEnv" (dict "root" . "mode" .Values.preflight.sslMode) | nindent 12 }}
             - name: PGCONNECT_TIMEOUT
               value: {{ .Values.preflight.connectTimeoutSeconds | quote }}
+          {{- if .Values.database.tls.ca.existingSecret }}
+          volumeMounts:
+            {{- include "zaq.databaseCaMount" . | nindent 12 }}
+          {{- end }}
+      {{- if .Values.database.tls.ca.existingSecret }}
+      volumes:
+        {{- include "zaq.databaseCaVolume" . | nindent 8 }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

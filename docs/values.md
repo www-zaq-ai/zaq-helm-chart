@@ -21,6 +21,9 @@ Do not put credentials in any value.
 - `image.pullPolicy`: `IfNotPresent`; also `Always` or `Never`.
 - `image.appVersion`: `""`; required full semantic version for digests or
   non-semantic tags. An optional leading `v` is accepted. Minimum `0.18.0`.
+- `image.databaseTlsSupported`: `false`; operator attestation that the selected
+  image contains ZAQ PR #943, required for application TLS. Known unfixed
+  official tags through v0.19.0 are rejected for application TLS.
 - `imagePullSecrets`: `[]`; native list of `{name: existing-secret}` references.
 
 ## Existing Secrets
@@ -47,15 +50,23 @@ contents or creates Secret resources. See
 - `database.reader`: `""`; release/namespace-derived reader login.
 - `database.poolSize`: `10`; application Ecto connection pool size.
 - `database.ipv6`: `false`; set `ECTO_IPV6` for application DNS connections.
+- `database.tls.enabled`: `false`, compatible with the default v0.19.0 image.
+  Enable verified application TLS only with a fixed, declared image.
+- `database.tls.ca.existingSecret`: `""`; optional namespace-local Secret with a
+  PEM CA bundle; may reuse the DBA Secret. Empty uses system trust.
+- `database.tls.ca.key`: `ca.crt`; only this key is projected read-only, never
+  the other keys in that Secret. Shared with independent provisioning/preflight
+  libpq checks, even with application TLS disabled. See [TLS rules](database-tls.md).
 - `database.provisioning.enabled`: `true`; add terminating provisioning init.
 - `database.provisioning.existingSecret`: `zaq-dba`; existing DBA Secret.
 - `database.provisioning.keys.username`: `username`; DBA login key.
 - `database.provisioning.keys.password`: `password`; DBA password key.
 - `database.provisioning.maintenanceDatabase`: `postgres`; DBA connection DB.
 - `database.provisioning.engine`: `auto`; also `postgres` or `paradedb`.
-- `database.provisioning.sslMode`: `prefer`; libpq **init-only** TLS mode;
-  also `disable`, `allow`, or `require`. This does not enable application TLS
-  or offer verified certificate validation.
+- `database.provisioning.sslMode`: `prefer`; independent libpq provisioning
+  setting, also `disable`, `allow`, `require`, `verify-ca`, or `verify-full`.
+  Use `verify-full` for certificate and hostname verification. It does not
+  override the separate application TLS setting.
 - `database.provisioning.resources.requests`: CPU `100m`, memory `256Mi`.
 - `database.provisioning.resources.limits`: CPU `1`, memory `512Mi`.
 - `database.provisioning.securityContext`: `allowPrivilegeEscalation: false`,
@@ -151,8 +162,9 @@ Pods after external rotation. This does not rotate database logins.
 - `preflight.ttlSecondsAfterFinished`: `3600`; failed Job retention, 60–86400
   seconds. Successful hooks are deleted immediately; previous hooks are removed
   before a retry.
-- `preflight.sslMode`: `prefer`; libpq-only, also `disable`, `allow`, `require`.
-  This does not secure the application's separate Ecto connection.
+- `preflight.sslMode`: `prefer`; independent libpq-only setting, also `disable`,
+  `allow`, `require`, `verify-ca`, or `verify-full`. Uses the shared CA bundle
+  or system trust in verification modes, not the application's Ecto setting.
 - `preflight.resources.requests`: CPU `100m`, memory `128Mi`.
 - `preflight.resources.limits`: CPU `500m`, memory `256Mi`.
 - `preflight.securityContext`: privilege escalation disabled, capabilities

@@ -52,6 +52,21 @@ Ingress integration checks API-accepted annotations/TLS configuration, removing
 TLS on upgrade, and resource cleanup. It installs no Ingress controller or
 cert-manager, so it does not verify certificate issuance or end-to-end HTTPS.
 
+Database TLS additionally has an opt-in **real application** Kind suite:
+
+```sh
+ZAQ_TLS_TEST_IMAGE=your-local-fixed-image:tag python -u tests/integration_tls.py
+```
+
+It loads that image into its own cluster and tests SSL-required external
+PostgreSQL, real migrations/readiness, CA-only projection from the DBA Secret,
+receipt restart, independent modes, missing keys/deadlines, rejected trust and
+hostname/plaintext/expired-certificate cases, and a test-only system trust store.
+The base image must already contain PR #943; the suite changes no application
+code and publishes nothing. See [image packaging prerequisites](database-tls.md#validation).
+The ordinary `tests/integration.py` remains the published v0.19.0 compatibility
+and upgrade suite; it is not evidence for application TLS support.
+
 Release-automation tests cover source-SHA pinning, test namespace isolation,
 retention boundaries, pagination, dry runs, and deletion guards without
 publishing or deleting live GitHub/GHCR artifacts. Never use live publication
