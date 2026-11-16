@@ -35,5 +35,5 @@ spec:
               service:
                 name: {{ include "zaq.fullname" . | quote }}
                 port:
-                  name: http
+                  number: {{ .Values.service.port }}
 {{- end }}

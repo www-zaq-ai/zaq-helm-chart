@@ -10,7 +10,7 @@ spec:
   ports:
     - name: http
       port: {{ .Values.service.port }}
-      targetPort: http
+      targetPort: 4000
       protocol: TCP
   selector:
     {{- include "zaq.selectorLabels" . | nindent 4 }}
