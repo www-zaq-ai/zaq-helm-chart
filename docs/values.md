@@ -193,6 +193,8 @@ verify the actual existing claim supports it. No volume is shared with the init.
 ## Service and Ingress
 
 - `service.port`: `4000`; ClusterIP Service port; container always uses `4000`.
+  The Service targets numeric port `4000`; the Ingress references the configured
+  Service port numerically. The container's `http` name remains used by probes.
 - `ingress.enabled`: `false`.
 - `ingress.className`: `""`; omit to use controller defaults.
 - `ingress.annotations`: editable string key/value settings in Rancher's form.

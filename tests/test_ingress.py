@@ -3,10 +3,30 @@ import unittest
 
 import jsonschema
 
-from test_chart import DEFAULTS, SCHEMA, documents, render, resource
+from test_chart import DEFAULTS, SCHEMA, documents, pod, render, resource
 
 
 class IngressTests(unittest.TestCase):
+    def test_default_service_targets_numeric_application_port(self):
+        docs = documents(render())
+        self.assertEqual(resource(docs, "Service")["spec"]["ports"],
+                         [{"name": "http", "port": 4000, "targetPort": 4000, "protocol": "TCP"}])
+        self.assertEqual(pod(docs)["containers"][0]["ports"],
+                         [{"name": "http", "containerPort": 4000, "protocol": "TCP"}])
+
+    def test_numeric_ingress_backend_follows_service_port_not_container_port(self):
+        for port in [4000, 80, 8080]:
+            with self.subTest(port=port):
+                values = {"ingress": {"enabled": True}}
+                if port != 4000:
+                    values["service"] = {"port": port}
+                docs = documents(render(values))
+                service = resource(docs, "Service")
+                self.assertEqual(service["spec"]["ports"],
+                                 [{"name": "http", "port": port, "targetPort": 4000, "protocol": "TCP"}])
+                backend = resource(docs, "Ingress")["spec"]["rules"][0]["http"]["paths"][0]["backend"]["service"]
+                self.assertEqual(backend, {"name": service["metadata"]["name"], "port": {"number": port}})
+
     def test_simple_tls_uses_ingress_host_and_preserves_annotations(self):
         docs = documents(render(fixture="tests/fixtures/ingress-form.yaml"))
         ingress = resource(docs, "Ingress")

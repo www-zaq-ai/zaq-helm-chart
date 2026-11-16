@@ -115,11 +115,18 @@ def main():
 
         def health(release):
             # Use Python already bundled in ZAQ; assert 200, never follow redirects.
+            service = get("service", release + "-zaq")
+            port = service["spec"]["ports"][0]
+            assert port["targetPort"] == 4000
+            targets = [("127.0.0.1", 4000), (service["metadata"]["name"], port["port"])]
             script = (
-                "import http.client,json; c=http.client.HTTPConnection('127.0.0.1',4000,timeout=5); "
-                "c.request('GET','/channels/health',headers={'Host':'zaq.example.com','X-Forwarded-Proto':'https'}); "
-                "r=c.getresponse(); assert r.status==200,r.status; "
-                "assert json.loads(r.read())['status']=='ok'"
+                "import http.client,json\n"
+                f"for host,port in {targets!r}:\n"
+                " c=http.client.HTTPConnection(host,port,timeout=5)\n"
+                " c.request('GET','/channels/health',headers={'Host':'zaq.example.com','X-Forwarded-Proto':'https'})\n"
+                " r=c.getresponse(); assert r.status==200,r.status\n"
+                " assert json.loads(r.read())['status']=='ok'\n"
+                " c.close()\n"
             )
             run(kubectl + ["exec", "deployment/" + release + "-zaq", "-c", "zaq", "--", "python3", "-c", script])
 
@@ -245,6 +252,8 @@ def main():
                 assert {"USER_PORTAL_BASE_URL", "LITELLM_BASE_URL"}.isdisjoint(e["name"] for e in container["env"])
             assert ingress["spec"]["tls"] == [{"secretName": "externally-managed-tls", "hosts": ["zaq.example.com"]}]
             assert get("service", "real-zaq")["spec"]["type"] == "ClusterIP"
+            assert ingress["spec"]["rules"][0]["http"]["paths"][0]["backend"]["service"] == {
+                "name": "real-zaq", "port": {"number": 4000}}
             assert not run(kubectl + ["get", "secret", "externally-managed-tls", "--ignore-not-found", "-o", "name"]).stdout
             assert not run(kubectl + ["get", "job", "real-zaq-preflight", "--ignore-not-found", "-o", "name"]).stdout
             health("real")
@@ -316,8 +325,12 @@ def main():
             previous_pod = next(p["metadata"]["uid"] for p in get("pods")["items"] if p["metadata"]["labels"].get("app.kubernetes.io/instance") == "real")
             values["ingress"]["tlsEnabled"] = False
             values["ingress"]["annotations"]["nginx.ingress.kubernetes.io/proxy-read-timeout"] = "7200"
+            # A custom Service port must still route to container port 4000.
+            values["service"] = {"port": 80}
             install("real", values, upgrade=True)
             assert "tls" not in get("ingress", "real-zaq")["spec"]
+            assert get("ingress", "real-zaq")["spec"]["rules"][0]["http"]["paths"][0]["backend"]["service"] == {
+                "name": "real-zaq", "port": {"number": 80}}
             assert get("ingress", "real-zaq")["metadata"]["annotations"]["nginx.ingress.kubernetes.io/proxy-read-timeout"] == "7200"
             health("real")
             custom_environment("real", "updated")
