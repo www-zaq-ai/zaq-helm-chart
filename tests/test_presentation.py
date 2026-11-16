@@ -74,7 +74,7 @@ class PresentationTests(unittest.TestCase):
 
     def test_only_secret_names_and_key_mappings_not_credentials(self):
         selectors = {q["variable"] for q in self.questions if q["type"] == "secret"}
-        self.assertEqual(selectors, {"secrets.existingSecret", "database.provisioning.existingSecret"})
+        self.assertEqual(selectors, {"secrets.existingSecret", "database.provisioning.existingSecret", "database.tls.ca.existingSecret"})
         self.assertFalse(any(q["type"] == "password" for q in self.questions))
         self.assertFalse(any(q["type"] == "yaml" for q in self.questions))  # Rancher 2.10 emits text, not typed arrays.
         for q in self.questions:

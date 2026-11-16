@@ -81,6 +81,27 @@ For advanced TLS lists, use `ingress.tls` in Values YAML and keep
 rejected. Unchecking it leaves advanced-list TLS active if configured. The TLS
 Secret name alone is ignored with the checkbox off.
 
+## Database TLS
+
+Published v0.19.0 and earlier lack application TLS support, so it remains off
+for the default image. For an image containing ZAQ PR #943, declare
+`image.databaseTlsSupported: true` and enable `database.tls.enabled`. This uses
+verified TLS with no plaintext fallback. With no CA Secret, it uses system
+trust; private CAs need `database.tls.ca.existingSecret` and `key` (default
+`ca.crt`). These fields are in Rancher's **Database TLS** group.
+
+The CA can live in the **existing DBA Secret**. Only that CA key is projected
+read-only; DBA username/password keys are never mounted into the application.
+Provisioning-disabled deployments can select the CA independently. Application
+TLS settings also reach the init container's application-owner URL check.
+Provisioning DBA/reader and preflight connections retain their independent
+libpq modes; select `verify-full` there for certificate/hostname verification.
+They share the selected CA bundle, or use system trust in verification modes.
+
+The TLS-capable image must include the new URL helper in its Docker build
+context. See the [full TLS guide](https://github.com/www-zaq-ai/zaq-helm-chart/blob/main/docs/database-tls.md)
+for image gating, packaging prerequisites, and Secret/CA rotation behavior.
+
 ## Additional application environment variables
 
 Rancher's **Application** group includes a non-sensitive key/value editor for

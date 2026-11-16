@@ -81,9 +81,9 @@ questions:
   - variable: database.provisioning.sslMode
     default: prefer
     type: enum
-    options: [disable, allow, prefer, require]
+    options: [disable, allow, prefer, require, verify-ca, verify-full]
     label: Provisioning libpq TLS mode
-    description: Applies to the init container only. ZAQ v0.19.0 does not enable Ecto/application database TLS.
+    description: Independent DBA/reader libpq mode in the init container, not application TLS. Choose verify-full for certificate and hostname verification. Uses the selected shared CA bundle or system trust.
     show_if: database.provisioning.enabled=true
     group: Database
   - variable: secrets.existingSecret
@@ -147,9 +147,9 @@ questions:
   - variable: preflight.sslMode
     default: prefer
     type: enum
-    options: [disable, allow, prefer, require]
+    options: [disable, allow, prefer, require, verify-ca, verify-full]
     label: Preflight libpq TLS mode
-    description: Does not enable TLS for the application's separate Ecto connection.
+    description: Independent libpq mode for this read-only check, not application TLS. Choose verify-full for verified TLS; uses the shared CA bundle or system trust.
     show_if: preflight.enabled=true
     group: Prerequisite check
   - variable: persistence.enabled
@@ -250,3 +250,28 @@ questions:
     description: Name in this namespace of an existing TLS Secret or one cert-manager will create. Enter a name only, never certificate/private-key values. Clear the advanced ingress.tls list when enabling this option.
     show_if: ingress.enabled=true&&ingress.tlsEnabled=true
     group: Networking
+  - variable: image.databaseTlsSupported
+    default: false
+    type: boolean
+    label: Selected image contains application TLS support
+    description: Confirm only after selecting an image containing ZAQ PR 943 in Values YAML. Published v0.19.0 and earlier lack support. This is an operator assertion, not image inspection.
+    group: Database TLS
+  - variable: database.tls.enabled
+    default: false
+    type: boolean
+    label: Enable verified application database TLS
+    description: Requires a fixed TLS-capable image and the image support confirmation. Verifies the server certificate and hostname, without plaintext fallback. Applies to migrations and the init container's application-owner URL check; does not override provisioning or preflight libpq modes.
+    group: Database TLS
+  - variable: database.tls.ca.existingSecret
+    default: ""
+    type: secret
+    label: Existing database CA Secret (optional)
+    description: Empty uses system trust. May select the existing DBA Secret; only the selected CA key is mounted, never its credential keys. Also supplies the CA for independent provisioning/preflight libpq checks.
+    group: Database TLS
+  - variable: database.tls.ca.key
+    default: ca.crt
+    type: string
+    required: true
+    label: CA bundle key name
+    description: Key containing a PEM CA bundle in the selected Secret, not a private key or credential value. Used only when a CA Secret is selected.
+    group: Database TLS

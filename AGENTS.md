@@ -56,6 +56,11 @@ README focused on the project overview, quick start, and documentation links.
   remains NOCREATEROLE. Document that broader owner privilege explicitly.
   Existing v0.18.0 deployments require approved external DBA maintenance before
   v0.19.0; never automate this repair or bypass receipts/ledgers in the chart.
+- Application database TLS requires an explicitly declared fixed image containing
+  ZAQ PR #943; published v0.19.0 and earlier lack it. Keep application TLS and
+  provisioning/preflight libpq modes independent. A shared CA may reuse the DBA
+  Secret, but project only its selected CA key, never credential keys. Do not
+  invent a supporting release version or silently enable TLS on an old image.
 
 ## Code quality
 
@@ -140,6 +145,15 @@ Canonical checks: install `tests/requirements.txt`, then run
 `PATH`. Keep this guidance synchronized with CI. Do not substitute mock-only
 checks for required integration checks. Broaden testing when failures or changed
 behavior justify it, rather than repeating successful unrelated suites.
+For database TLS, additionally run:
+
+```sh
+ZAQ_TLS_TEST_IMAGE=your-local-fixed-image:tag python -u tests/integration_tls.py
+```
+
+Use an actual fixed image. The ordinary published-image suite does not prove
+TLS; report unavailable image/build tooling as a blocker, not a passing
+integration. See `docs/database-tls.md`.
 
 ### Workflow changes
 

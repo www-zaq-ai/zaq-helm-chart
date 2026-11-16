@@ -52,6 +52,7 @@ chart release; a source commit alone does not publish a chart.
 
 - [Deployment](docs/deployment.md) — prerequisites, database bootstrap, Secrets,
   installation, first login, and application compatibility.
+- [Database TLS](docs/database-tls.md) — image support, verified TLS, and CA Secrets.
 - [Rancher](docs/rancher.md) — prepare and install in a Rancher-managed cluster.
 - [Storage](docs/storage.md) — StorageClasses, existing PVCs, permissions,
   expansion, backups, and retention.

@@ -76,6 +76,22 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 
 {{- define "zaq.validate" -}}
 {{- $_ := include "zaq.appVersion" . -}}
+{{- if .Values.database.tls.enabled -}}
+  {{- if not .Values.image.databaseTlsSupported -}}
+    {{- fail "database.tls.enabled requires a TLS-capable image and image.databaseTlsSupported=true (ZAQ PR #943)" -}}
+  {{- end -}}
+  {{- if and (eq .Values.image.repository "ghcr.io/www-zaq-ai/zaq") (not .Values.image.digest) (semverCompare "<=0.19.0" (include "zaq.appVersion" .)) -}}
+    {{- fail "published ZAQ v0.19.0 and earlier lack application TLS; select a fixed image/digest before enabling database.tls" -}}
+  {{- end -}}
+{{- end -}}
+{{- $ca := .Values.database.tls.ca -}}
+{{- $dbaKeys := .Values.database.provisioning.keys | default (dict) -}}
+{{- if and $ca.existingSecret (eq $ca.existingSecret .Values.database.provisioning.existingSecret) (has $ca.key (list (get $dbaKeys "username" | default "username") (get $dbaKeys "password" | default "password"))) -}}
+  {{- fail "database.tls.ca.key must select only a CA bundle, not a DBA credential key" -}}
+{{- end -}}
+{{- if and $ca.existingSecret (eq $ca.existingSecret .Values.secrets.existingSecret) (has $ca.key (values .Values.secrets.keys)) -}}
+  {{- fail "database.tls.ca.key must select only a CA bundle, not a runtime credential key" -}}
+{{- end -}}
 {{- $extraNames := dict -}}
 {{- range $name, $_ := .Values.app.extraEnv -}}
   {{- include "zaq.validateExtraEnvName" $name -}}
@@ -161,6 +177,43 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
     secretKeyRef:
       name: {{ .Values.secrets.existingSecret | quote }}
       key: {{ .Values.secrets.keys.ownerPassword | quote }}
+{{- end -}}
+
+{{- define "zaq.applicationTlsEnv" -}}
+- name: ZAQ_DATABASE_SSL
+  value: {{ .Values.database.tls.enabled | quote }}
+{{- if and .Values.database.tls.enabled .Values.database.tls.ca.existingSecret }}
+- name: ZAQ_DATABASE_SSL_CA_CERT_FILE
+  value: /etc/zaq/database-ca/ca.crt
+{{- end }}
+{{- end -}}
+
+{{- define "zaq.libpqTlsEnv" -}}
+- name: PGSSLMODE
+  value: {{ .mode | quote }}
+{{- if .root.Values.database.tls.ca.existingSecret }}
+- name: PGSSLROOTCERT
+  value: /etc/zaq/database-ca/ca.crt
+{{- else if has .mode (list "verify-ca" "verify-full") }}
+- name: PGSSLROOTCERT
+  value: system
+{{- end }}
+{{- end -}}
+
+{{- define "zaq.databaseCaMount" -}}
+- name: database-ca
+  mountPath: /etc/zaq/database-ca
+  readOnly: true
+{{- end -}}
+
+{{- define "zaq.databaseCaVolume" -}}
+- name: database-ca
+  secret:
+    secretName: {{ .Values.database.tls.ca.existingSecret | quote }}
+    defaultMode: 292
+    items:
+      - key: {{ .Values.database.tls.ca.key | quote }}
+        path: ca.crt
 {{- end -}}
 
 {{- define "zaq.applicationSecretEnv" -}}
