@@ -1,16 +1,13 @@
 image:
   # Offline fixture: operator-attested fixed/backported image, not a real digest.
   digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  appVersion: "0.19.0"
-  databaseTlsSupported: true
+  appVersion: "0.19.1"
 database:
   tls:
     enabled: true
+    libpqMode: verify-full
     ca:
       existingSecret: zaq-dba
       key: ca.crt
-  provisioning:
-    sslMode: verify-full
 preflight:
   enabled: true
-  sslMode: verify-full

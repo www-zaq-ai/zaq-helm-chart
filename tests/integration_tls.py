@@ -1,6 +1,7 @@
 """Real chart TLS tests against a disposable SSL-required Kind PostgreSQL.
 
-Set ZAQ_TLS_TEST_IMAGE to a locally built, fixed ZAQ image containing PR #943.
+Uses the pinned published v0.19.1 image; ZAQ_TLS_TEST_IMAGE can select a local
+TLS-capable image implementing at least v0.19.1 instead.
 No application source is patched. All credentials/certificates are ephemeral;
 only reference names and non-sensitive settings enter Helm values.
 """
@@ -19,13 +20,14 @@ from urllib.parse import quote
 
 import yaml
 
-from integration import CHART, NODE_IMAGE, POSTGRES_IMAGE, ROOT
+from integration import APP_IMAGE, CHART, NODE_IMAGE, POSTGRES_IMAGE, ROOT
 
 
 def main():
-    image = os.environ.get("ZAQ_TLS_TEST_IMAGE")
-    if not image:
-        raise SystemExit("ZAQ_TLS_TEST_IMAGE must select a local fixed image containing PR #943")
+    local_image = os.environ.get("ZAQ_TLS_TEST_IMAGE")
+    image = local_image or APP_IMAGE
+    if local_image and ("@" in local_image or ":" not in local_image.rsplit("/", 1)[-1]):
+        raise SystemExit("ZAQ_TLS_TEST_IMAGE must be a locally loaded repository:tag")
     suffix = secrets.token_hex(4)
     cluster = "zaq-tls-" + suffix
     namespace = "chart-tls"
@@ -94,10 +96,10 @@ def main():
                       "assert c.getresponse().status==200")
             run(kubectl + ["exec", "deployment/" + release + "-zaq", "-c", "zaq", "--", "python3", "-c", script])
 
-        def tls_failure(release, changes):
+        def tls_failure(release, changes, preflight=False):
             candidate = copy.deepcopy(values)
             candidate["database"]["provisioning"] = {"enabled": False}
-            candidate["preflight"] = {"enabled": False}
+            candidate["preflight"] = {"enabled": preflight}
             for key, value in changes.items():
                 if key == "host":
                     candidate["database"]["host"] = value
@@ -105,6 +107,10 @@ def main():
                     candidate["database"]["tls"][key] = value
             before = sql("SELECT count(*) FROM schema_migrations;")
             install(release, candidate, failure=True)
+            if preflight:
+                # A successful weaker-mode hook must not weaken application TLS.
+                get("deployment", release + "-zaq")
+                assert not run(kubectl + ["get", "job", release + "-zaq-preflight", "--ignore-not-found", "-o", "name"]).stdout
             pods = json.loads(run(kubectl + ["get", "pods", "-l", "app.kubernetes.io/instance=" + release, "-o", "json"]).stdout)["items"]
             status = pods[0]["status"]["containerStatuses"][0]
             exited = status.get("lastState", {}).get("terminated", status.get("state", {}).get("terminated", {}))
@@ -138,17 +144,23 @@ def main():
         runtime = {"owner-password": secrets.token_hex(32) + ":@/?#%", "reader-password": secrets.token_hex(32),
                    "secret-key-base": secrets.token_hex(64), "encryption-key": base64.b64encode(secrets.token_bytes(32)).decode()}
         sensitive.extend([dba, *runtime.values()])
-        values = {"image": {"repository": image.rsplit(":", 1)[0], "tag": image.rsplit(":", 1)[1], "pullPolicy": "Never",
-                            "appVersion": "0.19.0", "databaseTlsSupported": True},
+        selected_image = {"appVersion": "0.19.1"}
+        if local_image:
+            selected_image.update(repository=image.rsplit(":", 1)[0], tag=image.rsplit(":", 1)[1], pullPolicy="Never")
+        else:
+            selected_image.update(repository=image.split("@")[0], digest=image.split("@")[1])
+        values = {"image": selected_image,
+                  "global": {"cattle": {"clusterId": "c-tls", "projectId": "p-tls"}},
                   "database": {"host": host, "name": "tls_zaq", "owner": "tls_owner", "reader": "tls_reader",
                                "tls": {"enabled": True, "ca": {"existingSecret": "zaq-dba", "key": "ca.crt"}},
-                               "provisioning": {"sslMode": "verify-full"}},
-                  "preflight": {"enabled": True, "sslMode": "verify-full"},
+                               "provisioning": {"enabled": True}},
+                  "preflight": {"enabled": True},
                   "persistence": {"enabled": False}, "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}}}
         try:
             print("Creating disposable TLS Kind cluster", flush=True)
             run(["kind", "create", "cluster", "--name", cluster, "--image", NODE_IMAGE, "--kubeconfig", kubeconfig, "--wait", "180s"])
-            run(["kind", "load", "docker-image", image, "--name", cluster])
+            if local_image:
+                run(["kind", "load", "docker-image", image, "--name", cluster])
             run(kubectl + ["create", "namespace", namespace])
             run(pgctl + ["create", "namespace", db_namespace])
             secret("zaq-dba", {"username": "postgres", "password": dba, "ca.crt": ca,
@@ -187,11 +199,26 @@ def main():
             values["database"]["provisioning"]["enabled"] = False
             install("tls", values, upgrade=True)
             health("tls")
+
+            print("Testing shared require and verify-ca modes for provisioning/preflight with verified application TLS", flush=True)
+            for mode in ["require", "verify-ca"]:
+                values["database"]["provisioning"]["enabled"] = True
+                values["database"]["tls"]["libpqMode"] = mode
+                install("tls", values, upgrade=True)
+                health("tls")
+                spec = get("deployment", "tls-zaq")["spec"]["template"]["spec"]
+                init_env = {e["name"]: e for e in spec["initContainers"][0]["env"]}
+                assert init_env["PGSSLMODE"]["value"] == mode
+                app_env = {e["name"]: e for e in spec["containers"][0]["env"]}
+                assert app_env["ZAQ_DATABASE_SSL"]["value"] == "true" and "PGSSLMODE" not in app_env
+            values["database"]["tls"]["libpqMode"] = "verify-full"
+            values["database"]["provisioning"]["enabled"] = False
             uninstall("tls")
 
-            print("Testing independent provisioning and preflight plaintext modes are not overridden", flush=True)
+            print("Testing shared TLS-off switch disables provisioning and preflight against an SSL-required server", flush=True)
             blocked = copy.deepcopy(values)
-            blocked["database"]["provisioning"] = {"enabled": True, "sslMode": "disable"}
+            blocked["database"]["provisioning"] = {"enabled": True}
+            blocked["database"]["tls"]["enabled"] = False
             blocked["preflight"]["enabled"] = False
             install("blocked-init", blocked, failure=True)
             pods = json.loads(run(kubectl + ["get", "pods", "-l", "app.kubernetes.io/instance=blocked-init", "-o", "json"]).stdout)["items"]
@@ -199,14 +226,18 @@ def main():
             assert status.get("lastState", {}).get("terminated", status.get("state", {}).get("terminated", {})).get("exitCode", 0) != 0
             uninstall("blocked-init")
             blocked = copy.deepcopy(values)
-            blocked["preflight"]["sslMode"] = "disable"
+            blocked["database"]["tls"]["enabled"] = False
             install("blocked-hook", blocked, failure=True)
             assert any(c["type"] == "Failed" for c in get("job", "blocked-hook-zaq-preflight")["status"]["conditions"])
             assert not run(kubectl + ["get", "deployment", "blocked-hook-zaq", "--ignore-not-found", "-o", "name"]).stdout
             uninstall("blocked-hook")
 
+            for mode in ["require", "verify-ca"]:
+                print("Testing application rejects wrong hostname after successful " + mode + " preflight", flush=True)
+                tls_failure("wrong-host-" + mode, {"host": "wrong-host.database-tls.svc.cluster.local", "libpqMode": mode},
+                            preflight=True)
+
             for release, changes in [("wrong-ca", {"ca": {"existingSecret": "zaq-dba", "key": "untrusted.crt"}}),
-                                     ("wrong-host", {"host": "wrong-host.database-tls.svc.cluster.local"}),
                                      ("no-trust", {"ca": {"existingSecret": "", "key": "ca.crt"}}),
                                      ("bad-pem", {"ca": {"existingSecret": "zaq-dba", "key": "invalid.crt"}}),
                                      ("plaintext", {"enabled": False})]:
@@ -234,9 +265,15 @@ def main():
             run(["docker", "build", "-t", trusted_image, "-f", "-", str(trust)], dockerfile)
             run(["kind", "load", "docker-image", trusted_image, "--name", cluster])
             system = copy.deepcopy(values)
-            system["image"].update(repository=trusted_image.rsplit(":", 1)[0], tag=trusted_image.rsplit(":", 1)[1])
+            system["image"].update(repository=trusted_image.rsplit(":", 1)[0], tag=trusted_image.rsplit(":", 1)[1],
+                                   digest="", pullPolicy="Never")
             system["database"]["tls"]["ca"]["existingSecret"] = ""
             install("system", system)
+            health("system")
+            print("Testing verify-ca uses the system CA bundle without libpq's verify-full-only system shortcut", flush=True)
+            system["database"]["tls"]["libpqMode"] = "verify-ca"
+            system["database"]["provisioning"]["enabled"] = True
+            install("system", system, upgrade=True)
             health("system")
             uninstall("system")
             print("Real TLS Kind integration passed; no existing database or application source changed", flush=True)

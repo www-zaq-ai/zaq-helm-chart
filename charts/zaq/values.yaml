@@ -7,15 +7,12 @@ strategy:
   type: Recreate
 image:
   repository: ghcr.io/www-zaq-ai/zaq
-  tag: v0.19.0
+  tag: v0.19.1
   # Optional immutable digest. A nonempty digest takes precedence over the tag.
   digest: ""
   pullPolicy: IfNotPresent
   # Required with a digest or a non-semantic tag; operator-attested image version.
   appVersion: ""
-  # Operator attestation: selected image includes ZAQ PR #943 (application TLS).
-  # Published v0.19.0 and earlier do not. Required when database.tls.enabled.
-  databaseTlsSupported: false
 imagePullSecrets: []
 secrets:
   # Existing Secret in the release namespace; no credentials in Helm values.
@@ -27,9 +24,12 @@ secrets:
     encryptionKey: encryption-key
 database:
   tls:
-    # Compatibility default for the published image. Enable for a TLS-capable
-    # image; true means verified application TLS, with no plaintext fallback.
+    # One switch for application, provisioning and preflight TLS. Official
+    # images at the required minimum v0.19.1 include support.
     enabled: false
+    # Shared provisioning/preflight libpq mode, used only when TLS is enabled.
+    # Application TLS always verifies the certificate chain and hostname.
+    libpqMode: verify-full
     ca:
       # Optional shared CA bundle, never credential contents. Empty uses system
       # trust. May be the same Secret as database.provisioning.existingSecret.
@@ -51,9 +51,6 @@ database:
       password: password
     maintenanceDatabase: postgres
     engine: auto
-    # Independent libpq setting for provisioning ONLY. Use verify-full for
-    # verified DBA/reader connections; application TLS never overrides this.
-    sslMode: prefer
     resources:
       requests:
         cpu: 100m
@@ -84,9 +81,6 @@ preflight:
   connectTimeoutSeconds: 10
   # Successful hooks are removed immediately; failed hooks expire via Job TTL.
   ttlSecondsAfterFinished: 3600
-  # Independent libpq mode for this check ONLY. Supports verify-ca/verify-full;
-  # shares database.tls.ca if selected, otherwise verification uses system trust.
-  sslMode: prefer
   resources:
     requests:
       cpu: 100m
