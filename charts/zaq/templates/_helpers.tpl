@@ -76,14 +76,6 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 
 {{- define "zaq.validate" -}}
 {{- $_ := include "zaq.appVersion" . -}}
-{{- if .Values.database.tls.enabled -}}
-  {{- if not .Values.image.databaseTlsSupported -}}
-    {{- fail "database.tls.enabled requires a TLS-capable image and image.databaseTlsSupported=true (ZAQ PR #943)" -}}
-  {{- end -}}
-  {{- if and (eq .Values.image.repository "ghcr.io/www-zaq-ai/zaq") (not .Values.image.digest) (semverCompare "<=0.19.0" (include "zaq.appVersion" .)) -}}
-    {{- fail "published ZAQ v0.19.0 and earlier lack application TLS; select a fixed image/digest before enabling database.tls" -}}
-  {{- end -}}
-{{- end -}}
 {{- $ca := .Values.database.tls.ca -}}
 {{- $dbaKeys := .Values.database.provisioning.keys | default (dict) -}}
 {{- if and $ca.existingSecret (eq $ca.existingSecret .Values.database.provisioning.existingSecret) (has $ca.key (list (get $dbaKeys "username" | default "username") (get $dbaKeys "password" | default "password"))) -}}
@@ -189,12 +181,20 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{- define "zaq.libpqTlsEnv" -}}
+{{- $mode := "disable" -}}
+{{- if .Values.database.tls.enabled -}}
+  {{- $mode = .Values.database.tls.libpqMode -}}
+{{- end -}}
 - name: PGSSLMODE
-  value: {{ .mode | quote }}
-{{- if .root.Values.database.tls.ca.existingSecret }}
+  value: {{ $mode | quote }}
+{{- if and .Values.database.tls.enabled .Values.database.tls.ca.existingSecret }}
 - name: PGSSLROOTCERT
   value: /etc/zaq/database-ca/ca.crt
-{{- else if has .mode (list "verify-ca" "verify-full") }}
+{{- else if eq $mode "verify-ca" }}
+- name: PGSSLROOTCERT
+  # libpq's special "system" value rejects modes weaker than verify-full.
+  value: /etc/ssl/certs/ca-certificates.crt
+{{- else if eq $mode "verify-full" }}
 - name: PGSSLROOTCERT
   value: system
 {{- end }}

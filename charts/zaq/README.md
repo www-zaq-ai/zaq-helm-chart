@@ -4,8 +4,8 @@
 system for people, AI agents, and organizational knowledge. This chart deploys
 an isolated instance with persistent storage and optional HTTPS ingress, using
 an **external PostgreSQL server** and **pre-existing Kubernetes Secrets**.
-The default image is **ZAQ v0.19.0**; the minimum supported version remains
-**v0.18.0**. Chart and application versions are independent.
+The default and minimum supported image version is **ZAQ v0.19.1**.
+Chart and application versions are independent.
 
 ## Before installing
 
@@ -14,7 +14,7 @@ The default image is **ZAQ v0.19.0**; the minimum supported version remains
   The server may be outside Kubernetes or in another namespace.
 - For automatic bootstrap, a superuser DBA account. Otherwise prepare the
   database/owner externally and disable provisioning.
-- **ZAQ v0.19.0 requires cluster-wide `CREATEROLE` for the application owner.**
+- **ZAQ v0.19.1 requires cluster-wide `CREATEROLE` for the application owner.**
   This is role-administration capability, not schema isolation. Review shared
   PostgreSQL trust boundaries with the DBA before deploying.
 - Create a deployment Secret in the release namespace with `owner-password`,
@@ -83,10 +83,10 @@ Secret name alone is ignored with the checkbox off.
 
 ## Database TLS
 
-Published v0.19.0 and earlier lack application TLS support, so it remains off
-for the default image. For an image containing ZAQ PR #943, declare
-`image.databaseTlsSupported: true` and enable `database.tls.enabled`. This uses
-verified TLS with no plaintext fallback. With no CA Secret, it uses system
+The default v0.19.1 image includes verified application TLS. It remains opt-in:
+enable `database.tls.enabled` for application, provisioning and preflight without
+a separate image-support confirmation.
+This uses verified TLS with no plaintext fallback. With no CA Secret, it uses system
 trust; private CAs need `database.tls.ca.existingSecret` and `key` (default
 `ca.crt`). These fields are in Rancher's **Database TLS** group.
 
@@ -94,13 +94,29 @@ The CA can live in the **existing DBA Secret**. Only that CA key is projected
 read-only; DBA username/password keys are never mounted into the application.
 Provisioning-disabled deployments can select the CA independently. Application
 TLS settings also reach the init container's application-owner URL check.
-Provisioning DBA/reader and preflight connections retain their independent
-libpq modes; select `verify-full` there for certificate/hostname verification.
-They share the selected CA bundle, or use system trust in verification modes.
+Provisioning DBA/reader and preflight share `database.tls.libpqMode`, default
+`verify-full` (chain and hostname verification). The selector appears only with
+TLS enabled and also supports `verify-ca` (chain only) and `require` (encryption,
+without guaranteed hostname verification). These modes never weaken application
+TLS. All clients share the CA bundle, or system trust for verification. With TLS
+off, every client uses plaintext and no CA is mounted; the mode is ignored.
 
-The TLS-capable image must include the new URL helper in its Docker build
-context. See the [full TLS guide](https://github.com/www-zaq-ai/zaq-helm-chart/blob/main/docs/database-tls.md)
-for image gating, packaging prerequisites, and Secret/CA rotation behavior.
+Custom images must preserve v0.19.1's TLS implementation and helper. See the
+[full TLS guide](https://github.com/www-zaq-ai/zaq-helm-chart/blob/main/docs/database-tls.md)
+for version requirements and Secret/CA rotation behavior.
+
+When upgrading an earlier test chart, remove `image.databaseTlsSupported` from
+saved values. That redundant setting was removed and the strict schema rejects
+it. Custom images remain responsible for implementing their declared version.
+
+Also remove `database.provisioning.sslMode` and `preflight.sslMode` from saved
+values. Unlike their earlier `prefer` defaults, TLS off now means plaintext
+only. Enable the switch explicitly for a TLS-required server.
+
+Rancher may inject `global.cattle` metadata after its Edit YAML view. The chart
+accepts an optional `global` object with arbitrary children without using it to
+configure ZAQ. Other root fields and application settings remain strictly
+validated. No credential values belong in `global` or other Helm values.
 
 ## Additional application environment variables
 
@@ -150,13 +166,13 @@ token/RBAC.
 ## Important deployment constraints
 
 - When upgrading from v0.18.0, stop ZAQ/migrators and arrange the
-  [upstream DBA maintenance](https://github.com/www-zaq-ai/zaq/blob/v0.19.0/docs/database-setup.md#enable-owner-managed-logins-on-an-existing-deployment)
-  before normal v0.19.0 startup: approve/grant owner `CREATEROLE` and, when
+  [upstream DBA maintenance](https://github.com/www-zaq-ai/zaq/blob/v0.19.1/docs/database-setup.md#enable-owner-managed-logins-on-an-existing-deployment)
+  before normal v0.19.1 startup: approve/grant owner `CREATEROLE` and, when
   `pg_search` is installed, `pdb` USAGE with grant option. Existing receipts
   reject the old privilege contract; Helm never repairs it or bypasses ledgers.
-- **ZAQ v0.18.0/v0.19.0 do not enable TLS for the Ecto/application DB connection.**
-  Preflight/init-container libpq TLS settings do not secure that connection.
-  Use a trusted network; verified application DB TLS needs an upstream change.
+- **Application TLS is separate from preflight/init-container libpq modes.**
+  Configure both explicitly as needed. TLS is opt-in even though v0.19.1
+  supports it; use a trusted database network while application TLS is disabled.
 - ZAQ seeds an initial `admin`/`admin` Back Office account with mandatory password
   change. Restrict public access until setup at `/bo/login` is complete.
 - Keep encryption keys stable. Changing a Secret does not rotate DB passwords.

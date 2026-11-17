@@ -6,21 +6,29 @@ All credentials are ephemeral, passed as Secret JSON over stdin, never printed.
 
 import base64
 import copy
+import hashlib
+import io
 import json
 import os
 from pathlib import Path
 import secrets
 import subprocess
 import tempfile
+import tarfile
 import time
+from urllib.request import urlopen
 
 import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CHART = Path(os.environ.get("ZAQ_CHART_PATH", ROOT / "charts" / "zaq"))
-APP_IMAGE = "ghcr.io/www-zaq-ai/zaq@sha256:b038a32e9d0ecfa9b88c6594884acb6d37d1f1c57dfaf82656904b3b45d3a7fc"
+APP_IMAGE = "ghcr.io/www-zaq-ai/zaq@sha256:87dbd30329b682718d6b6947f191272f982796593fcd31c5cc412e642d79ec2d"
 PREVIOUS_APP_IMAGE = "ghcr.io/www-zaq-ai/zaq@sha256:9bf0f9ae2299e777b56564992691eafb119d0ccba9f6d40696a1efe63a81097a"
+# Start old deployments with their actual chart contract, never lower the new
+# chart's minimum to make a legacy image pass. Source is immutable and verified.
+LEGACY_CHART_COMMIT = "5352dfcaddfb46553d1c05a8d96cbdbb3edfe5c2"
+LEGACY_CHART_SHA256 = "4ed7ac726017d624f6bd4b2a071b777d037815dad1e4ece0c15e9932633f59b2"
 POSTGRES_IMAGE = "pgvector/pgvector@sha256:3e8b3adfd27b5707128f60956f62a793c3c9326ea8cfaf0eab7adccb5d700b21"
 NODE_IMAGE = "kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"
 NAMESPACE = "chart-test"
@@ -33,6 +41,32 @@ def run(command, input_text=None, check=True):
         # Do not echo stdin, environments, application logs, or Secret objects.
         raise RuntimeError(f"{command[0]} {command[1]} failed: {result.stderr[-2000:]}")
     return result
+
+
+def legacy_chart(directory):
+    url = f"https://codeload.github.com/www-zaq-ai/zaq-helm-chart/tar.gz/{LEGACY_CHART_COMMIT}"
+    with urlopen(url, timeout=60) as response:
+        data = response.read()
+    if hashlib.sha256(data).hexdigest() != LEGACY_CHART_SHA256:
+        raise RuntimeError("Legacy chart source checksum mismatch")
+    destination = Path(directory) / "legacy-chart"
+    prefix = f"zaq-helm-chart-{LEGACY_CHART_COMMIT}/charts/zaq/"
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+        for member in archive.getmembers():
+            if not member.name.startswith(prefix):
+                continue
+            relative = Path(member.name[len(prefix):])
+            if relative.is_absolute() or ".." in relative.parts or not (member.isfile() or member.isdir()):
+                raise RuntimeError("Unexpected legacy chart archive member")
+            target = destination / relative
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(archive.extractfile(member).read())
+    if not (destination / "Chart.yaml").is_file():
+        raise RuntimeError("Legacy chart missing from pinned archive")
+    return destination
 
 
 def main():
@@ -53,12 +87,12 @@ def main():
             apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": name},
                    "type": "Opaque", "stringData": entries}, target=target)
 
-        def install(release, values, expect_failure=False, upgrade=False):
+        def install(release, values, expect_failure=False, upgrade=False, chart=CHART):
             # Values contain references/settings only, never credentials.
             path = Path(directory) / (release + ".yaml")
             path.write_text(yaml.safe_dump(values))
             command = helm + (["upgrade", "--install"] if upgrade else ["install"])
-            result = run(command + [release, str(CHART), "-f", str(path), "--wait", "--timeout",
+            result = run(command + [release, str(chart), "-f", str(path), "--wait", "--timeout",
                                     "100s" if expect_failure else "15m"], check=not expect_failure)
             if expect_failure:
                 assert result.returncode != 0, "Expected failed installation became ready"
@@ -179,12 +213,14 @@ def main():
             print("Testing mock chart installation independently of PostgreSQL", flush=True)
             run(["docker", "build", "-t", "zaq-chart-mock:test", str(ROOT / "tests" / "mock")])
             run(["kind", "load", "docker-image", "zaq-chart-mock:test", "--name", cluster])
-            install("mock", {"image": {"repository": "zaq-chart-mock", "tag": "test", "appVersion": "0.18.0", "pullPolicy": "Never"},
+            install("mock", {"image": {"repository": "zaq-chart-mock", "tag": "test", "appVersion": "0.19.1", "pullPolicy": "Never"},
                              "persistence": {"retain": False}})
             run(helm + ["uninstall", "mock", "--wait"])
             assert not [p for p in get("pvc")["items"] if p["metadata"]["name"] == "mock-zaq"]
 
-            values = {"image": {"digest": APP_IMAGE.split("@")[1], "appVersion": "0.19.0"},
+            values = {"image": {"digest": APP_IMAGE.split("@")[1], "appVersion": "0.19.1"},
+                      "global": {"cattle": {"clusterId": "c-integration", "projectId": "p-integration",
+                                            "url": "https://rancher.example.org"}},
                       "database": {"host": "postgresql.database-test.svc.cluster.local", "name": "integration_zaq", "owner": "integration_owner", "reader": "integration_reader"},
                       "preflight": {"enabled": True},
                       "app": {"extraEnv": {"REQ_LLM_POOL_SIZE": "8", "CHART_TEST_SETTING": "initial"},
@@ -271,7 +307,7 @@ def main():
             assert sql("INSERT INTO public.chart_acl_test VALUES (2);", "reader", "integration_zaq", check=False).returncode != 0
             flags = sql("SELECT rolname,rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls,rolinherit "
                         "FROM pg_roles WHERE rolname IN ('integration_owner','integration_reader') ORDER BY rolname;").stdout.splitlines()
-            # v0.19.0 explicitly requires cluster-wide CREATEROLE for the owner;
+            # v0.19.1 requires cluster-wide CREATEROLE for the owner;
             # every other administrative flag and all reader flags remain denied.
             assert flags == ["integration_owner|f|f|t|f|f|f", "integration_reader|f|f|f|f|f|f"], flags
             receipt = sql("SELECT count(*) FROM zaq_bootstrap.receipt;", database="integration_zaq").stdout.strip()
@@ -355,20 +391,24 @@ def main():
             assert missing_pod["status"]["containerStatuses"][0]["state"]["waiting"]["reason"] == "CreateContainerConfigError"
             run(helm + ["uninstall", "missing-env", "--wait"])
 
-            print("Testing real v0.18.0 to v0.19.0 migration/receipt upgrade with persistent data", flush=True)
+            print("Testing historical-chart v0.18.0 to current-chart v0.19.1 upgrade with persistent data", flush=True)
             upgrade_values = copy.deepcopy(values)
             upgrade_values["image"] = {"tag": "v0.18.0", "digest": PREVIOUS_APP_IMAGE.split("@")[1], "appVersion": "0.18.0"}
             upgrade_values["database"].update({"name": "upgrade_zaq", "owner": "upgrade_owner", "reader": "upgrade_reader", "provisioning": {"enabled": True}})
             upgrade_values["persistence"] = {"size": "1Gi", "retain": False}
-            install("upgrade", upgrade_values)
+            # The old chart rejects Rancher's global key; the new chart accepts
+            # it on upgrade. Neither chart's validation is modified for the test.
+            upgrade_values.pop("global")
+            install("upgrade", upgrade_values, chart=legacy_chart(directory))
             health("upgrade")
             sql("CREATE TABLE public.chart_upgrade_test (id integer); INSERT INTO public.chart_upgrade_test VALUES (42);", "upgrade_owner", "upgrade_zaq")
             run(kubectl + ["exec", "deployment/upgrade-zaq", "-c", "zaq", "--", "python3", "-c",
                            "from pathlib import Path; Path('/zaq/volumes/chart-upgrade').write_text('retained')"])
             before_passwords = sql("SELECT rolname,rolpassword FROM pg_authid WHERE rolname IN ('upgrade_owner','upgrade_reader') ORDER BY rolname;").stdout
             before_migrations = set(sql("SELECT version FROM public.schema_migrations;", database="upgrade_zaq").stdout.splitlines())
-            upgrade_values["image"] = {"tag": "v0.19.0", "digest": APP_IMAGE.split("@")[1], "appVersion": "0.19.0"}
-            print("Verifying v0.19.0 refuses an unmigrated owner privilege contract", flush=True)
+            upgrade_values["image"] = {"tag": "v0.19.1", "digest": APP_IMAGE.split("@")[1], "appVersion": "0.19.1"}
+            upgrade_values["global"] = copy.deepcopy(values["global"])
+            print("Verifying v0.19.1 refuses an unmigrated owner privilege contract", flush=True)
             install("upgrade", upgrade_values, upgrade=True, expect_failure=True)
             assert sql("SELECT rolcreaterole FROM pg_roles WHERE rolname='upgrade_owner';").stdout.strip() == "f"
             assert before_migrations == set(sql("SELECT version FROM public.schema_migrations;", database="upgrade_zaq").stdout.splitlines())

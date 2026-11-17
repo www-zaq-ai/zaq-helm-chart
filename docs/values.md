@@ -16,15 +16,24 @@ Do not put credentials in any value.
 - `strategy.rollingUpdate`: optional native `maxSurge`/`maxUnavailable` settings;
   omit with `Recreate`.
 - `image.repository`: `ghcr.io/www-zaq-ai/zaq`.
-- `image.tag`: `v0.19.0`; preserved exactly for image pulling.
+- `image.tag`: `v0.19.1`; preserved exactly for image pulling.
 - `image.digest`: `""`; optional `sha256:…`, takes precedence over tag.
 - `image.pullPolicy`: `IfNotPresent`; also `Always` or `Never`.
 - `image.appVersion`: `""`; required full semantic version for digests or
-  non-semantic tags. An optional leading `v` is accepted. Minimum `0.18.0`.
-- `image.databaseTlsSupported`: `false`; operator attestation that the selected
-  image contains ZAQ PR #943, required for application TLS. Known unfixed
-  official tags through v0.19.0 are rejected for application TLS.
+  non-semantic tags. An optional leading `v` is accepted. Minimum `0.19.1`.
 - `imagePullSecrets`: `[]`; native list of `{name: existing-secret}` references.
+
+Database TLS uses one `database.tls.enabled` switch; the minimum v0.19.1 official
+image supports it. Custom images must implement their declared version.
+The former `image.databaseTlsSupported` setting was removed: delete it from
+saved values before upgrading, because the strict image schema rejects it.
+
+## Rancher metadata
+
+`global` is an optional object for Rancher/Helm-injected metadata such as
+`global.cattle`. Its children are unrestricted and ignored by the templates.
+It does not relax validation of other root fields or application settings;
+never put credentials in it. See [Rancher injection](rancher.md#rancher-injected-global-values).
 
 ## Existing Secrets
 
@@ -44,33 +53,41 @@ contents or creates Secret resources. See
   servers; IPv6 literals are not supported by the upstream URL constructor.
 - `database.port`: `5432`.
 - `database.name`: `""`; release/namespace-derived database identity.
-- `database.owner`: `""`; release/namespace-derived owner login. ZAQ v0.19.0
+- `database.owner`: `""`; release/namespace-derived owner login. ZAQ v0.19.1
   requires cluster-wide `CREATEROLE`; it is not a schema-confined identity. See
   [the privilege/upgrade contract](deployment.md#owner-privilege-scope).
 - `database.reader`: `""`; release/namespace-derived reader login.
 - `database.poolSize`: `10`; application Ecto connection pool size.
 - `database.ipv6`: `false`; set `ECTO_IPV6` for application DNS connections.
-- `database.tls.enabled`: `false`, compatible with the default v0.19.0 image.
-  Enable verified application TLS only with a fixed, declared image.
+- `database.tls.enabled`: `false`; one switch for application, provisioning and
+  preflight. Off means plaintext for all clients; on means verified application
+  TLS and the shared libpq mode below. No image-support confirmation is needed.
+- `database.tls.libpqMode`: `verify-full`; shared provisioning/preflight mode,
+  used only when TLS is enabled. Accepts `require` (encryption), `verify-ca`
+  (certificate chain), or `verify-full` (chain and hostname, recommended).
+  Application TLS always verifies chain and hostname regardless of this mode.
+  Without a CA Secret, `verify-ca` uses `/etc/ssl/certs/ca-certificates.crt`
+  (also required in custom images); `verify-full` uses libpq's `system` shortcut.
 - `database.tls.ca.existingSecret`: `""`; optional namespace-local Secret with a
   PEM CA bundle; may reuse the DBA Secret. Empty uses system trust.
 - `database.tls.ca.key`: `ca.crt`; only this key is projected read-only, never
-  the other keys in that Secret. Shared with independent provisioning/preflight
-  libpq checks, even with application TLS disabled. See [TLS rules](database-tls.md).
+  the other keys in that Secret. Shared by all clients when TLS is enabled;
+  ignored and not mounted otherwise. See [TLS rules](database-tls.md).
 - `database.provisioning.enabled`: `true`; add terminating provisioning init.
 - `database.provisioning.existingSecret`: `zaq-dba`; existing DBA Secret.
 - `database.provisioning.keys.username`: `username`; DBA login key.
 - `database.provisioning.keys.password`: `password`; DBA password key.
 - `database.provisioning.maintenanceDatabase`: `postgres`; DBA connection DB.
 - `database.provisioning.engine`: `auto`; also `postgres` or `paradedb`.
-- `database.provisioning.sslMode`: `prefer`; independent libpq provisioning
-  setting, also `disable`, `allow`, `require`, `verify-ca`, or `verify-full`.
-  Use `verify-full` for certificate and hostname verification. It does not
-  override the separate application TLS setting.
 - `database.provisioning.resources.requests`: CPU `100m`, memory `256Mi`.
 - `database.provisioning.resources.limits`: CPU `1`, memory `512Mi`.
 - `database.provisioning.securityContext`: `allowPrivilegeEscalation: false`,
   drop capability `ALL`, `readOnlyRootFilesystem: false`; configurable native map.
+
+Remove the old `database.provisioning.sslMode` and `preflight.sslMode` keys from
+saved values; both are rejected by the strict schema. Their earlier `prefer`
+defaults could negotiate TLS, whereas the shared switch now defaults to explicit
+plaintext. See [TLS migration](database-tls.md#upgrading-saved-values).
 
 Explicit database/role names use lowercase letters, digits and underscores,
 start with a letter/underscore, and are at most 63 characters. Reserved names
@@ -162,9 +179,6 @@ Pods after external rotation. This does not rotate database logins.
 - `preflight.ttlSecondsAfterFinished`: `3600`; failed Job retention, 60–86400
   seconds. Successful hooks are deleted immediately; previous hooks are removed
   before a retry.
-- `preflight.sslMode`: `prefer`; independent libpq-only setting, also `disable`,
-  `allow`, `require`, `verify-ca`, or `verify-full`. Uses the shared CA bundle
-  or system trust in verification modes, not the application's Ecto setting.
 - `preflight.resources.requests`: CPU `100m`, memory `128Mi`.
 - `preflight.resources.limits`: CPU `500m`, memory `256Mi`.
 - `preflight.securityContext`: privilege escalation disabled, capabilities

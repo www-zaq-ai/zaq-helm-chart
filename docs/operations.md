@@ -109,19 +109,21 @@ entrypoint remain authoritative. ZAQ boot validates application keys; malformed
 values can pass preflight presence checks and still correctly fail application
 startup. Preflight success cannot prevent a later connectivity failure.
 
-`preflight.sslMode` configures only this libpq client, separately from the init
-container setting. **Neither enables Ecto/application database TLS**. Dedicated
-`database.tls` settings support a fixed image containing PR #943; see
-[database TLS](database-tls.md). The selected CA bundle is shared, but the modes
-remain independent. CA Secret rotation needs a coordinated Pod restart; there
-is no Secret-content lookup or automatic checksum rollout.
+`database.tls.enabled` controls application, provisioning and preflight TLS.
+Provisioning/preflight share `database.tls.libpqMode` (`verify-full` by default).
+Selecting `require` or `verify-ca` does not weaken the application's verified
+TLS, so a weaker preflight can succeed while application hostname validation
+fails. With the switch off, all clients use plaintext and ignore CA/mode fields.
+See [database TLS](database-tls.md) for modes and saved-value migration. CA Secret
+rotation needs a coordinated Pod restart; there is no Secret-content lookup or
+automatic checksum rollout.
 
 ## Upgrade
 
-For **v0.18.0 → v0.19.0**, first obtain approval for the owner's new cluster-wide
+For **v0.18.0 → v0.19.1**, first obtain approval for the owner's new cluster-wide
 `CREATEROLE` privilege and arrange the
 [external DBA maintenance](deployment.md#upgrading-the-v0180-owner-contract).
-Stop ZAQ/migrators for that maintenance. Without it, normal v0.19.0 bootstrap
+Stop ZAQ/migrators for that maintenance. Without it, normal v0.19.1 bootstrap
 validation refuses the old owner contract; preflight success does not detect
 or fix this. Do not bypass the guard or delete a receipt/ledger to proceed.
 

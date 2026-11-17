@@ -28,7 +28,7 @@ Secret names, hostname, Ingress class/TLS Secret, and StorageClass or PVC.
 The example names `longhorn` and `nginx` are not assumed to exist in every cluster.
 Never enter passwords or application keys into Helm values.
 
-**ZAQ v0.19.0 requires cluster-wide `CREATEROLE` for its application owner.**
+**ZAQ v0.19.1 requires cluster-wide `CREATEROLE` for its application owner.**
 Review the [shared-server trust implications](deployment.md#owner-privilege-scope)
 with your DBA. For existing v0.18.0 deployments, arrange the documented external
 DBA maintenance before upgrading; Rancher's form and preflight do not repair
@@ -54,17 +54,30 @@ The CA selector is independent so provisioning-disabled deployments can use it.
 Empty means system trust. Enter a PEM CA key name, never certificate contents,
 private keys, or credentials.
 
-First select a fixed image containing PR #943 in Values YAML and confirm
-`image.databaseTlsSupported`; published v0.19.0 lacks support. The checkbox does
-not magically add TLS to that image. Provisioning and preflight retain their
-separate libpq mode controls; choose `verify-full` for verified connections.
+The default and minimum ZAQ version is v0.19.1, which includes verified database
+TLS. Enable it with `database.tls.enabled`; no separate image-support checkbox
+is needed. Custom images must implement their declared application version.
+The same switch enables provisioning/preflight TLS. A single shared
+`database.tls.libpqMode` selector appears only when TLS is enabled: `verify-full`
+(recommended), `verify-ca`, or `require`. The latter two weaken only libpq
+verification, never application certificate/hostname verification. With TLS
+disabled, every client uses plaintext and the CA/mode fields are ignored.
 See [database TLS](database-tls.md) for an example and compatibility defaults.
+
+If upgrading from an earlier test chart, remove `image.databaseTlsSupported`
+from saved Values YAML. The strict schema rejects this removed field; do not
+reuse old values containing it unchanged.
+
+Also remove `database.provisioning.sslMode` and `preflight.sslMode` from saved
+values and select the shared mode instead. Unlike the earlier libpq `prefer`
+defaults, TLS off now means explicit plaintext; enable the switch for a
+TLS-required database. Never disable schema validation to retain old keys.
 
 ### Additional application environment variables
 
 The **Application → Additional application environment variables** key/value
 editor sets `app.extraEnv`. Enter non-sensitive strings, for example
-`REQ_LLM_POOL_SIZE` → `8` (a supported v0.19.0 setting). Do not enter passwords,
+`REQ_LLM_POOL_SIZE` → `8` (a supported v0.19.1 setting). Do not enter passwords,
 API tokens, or application keys here: form values are stored in Helm release
 records. Variables only affect behavior when the selected ZAQ image supports
 them; arbitrary names are not new ZAQ configuration features.
@@ -156,6 +169,20 @@ helm upgrade --install customer-a ./charts/zaq \
 For a published chart, replace `./charts/zaq` with the OCI reference and add an
 explicit `--version`. See [GHCR installation](deployment.md#install-from-ghcr).
 Keep your kubeconfig protected; the chart does not require committing it.
+
+## Rancher-injected global values
+
+Rancher can inject `global.cattle` metadata during installation or upgrade,
+after the **Edit YAML** view. You may therefore not see `global` in your edited
+values even when Helm receives it. The chart accepts an optional `global`
+object with arbitrary children and does not use it to configure ZAQ or render
+resources. Other root-level fields and application settings remain strictly
+validated; non-object `global` values are rejected.
+
+If an older chart reports **Additional property global is not allowed**, upgrade
+to a newly published chart containing this schema fix. Removing the field from
+the editor may not help because Rancher can inject it again. Do not disable
+schema validation or put credentials in `global`.
 
 ## Verify the installation
 

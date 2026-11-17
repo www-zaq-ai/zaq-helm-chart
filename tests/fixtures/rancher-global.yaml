@@ -1,0 +1,7 @@
+# Non-sensitive metadata Rancher can inject after its Edit YAML view.
+global:
+  cattle:
+    clusterId: c-example
+    projectId: p-example
+    systemProjectId: p-system
+    url: https://rancher.example.org

@@ -94,12 +94,12 @@ class ExtraEnvironmentTests(unittest.TestCase):
 
     def test_default_image_is_new_release_without_changing_minimum(self):
         chart = yaml.safe_load((CHART / "Chart.yaml").read_text())
-        self.assertEqual(DEFAULTS["image"]["tag"], "v0.19.0")
-        self.assertEqual(chart["appVersion"], "0.19.0")
-        self.assertEqual(chart["annotations"]["zaq.ai/min-app-version"], "0.18.0")
+        self.assertEqual(DEFAULTS["image"]["tag"], "v0.19.1")
+        self.assertEqual(chart["appVersion"], "0.19.1")
+        self.assertEqual(chart["annotations"]["zaq.ai/min-app-version"], "0.19.1")
         docs = documents(render())
         app = pod(docs)["containers"][0]
-        self.assertEqual(app["image"], "ghcr.io/www-zaq-ai/zaq:v0.19.0")
+        self.assertEqual(app["image"], "ghcr.io/www-zaq-ai/zaq:v0.19.1")
         self.assertEqual(app["image"], pod(docs)["initContainers"][0]["image"])
         questions = yaml.safe_load((CHART / "questions.yaml").read_text())["questions"]
         owner = next(q for q in questions if q["variable"] == "database.owner")

@@ -77,14 +77,14 @@ spec:
               {{- else }}
               value: {{ include "zaq.databaseIdentity" (dict "root" . "kind" "name") | quote }}
               {{- end }}
-            {{- include "zaq.libpqTlsEnv" (dict "root" . "mode" .Values.preflight.sslMode) | nindent 12 }}
+            {{- include "zaq.libpqTlsEnv" . | nindent 12 }}
             - name: PGCONNECT_TIMEOUT
               value: {{ .Values.preflight.connectTimeoutSeconds | quote }}
-          {{- if .Values.database.tls.ca.existingSecret }}
+          {{- if and .Values.database.tls.enabled .Values.database.tls.ca.existingSecret }}
           volumeMounts:
             {{- include "zaq.databaseCaMount" . | nindent 12 }}
           {{- end }}
-      {{- if .Values.database.tls.ca.existingSecret }}
+      {{- if and .Values.database.tls.enabled .Values.database.tls.ca.existingSecret }}
       volumes:
         {{- include "zaq.databaseCaVolume" . | nindent 8 }}
       {{- end }}

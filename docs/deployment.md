@@ -46,8 +46,8 @@ packages must already be installed on the server; the init container cannot
 install server-side operating-system packages.
 
 Read the upstream
-[deployment](https://github.com/www-zaq-ai/zaq/blob/v0.19.0/docs/operations/deployment.md)
-and [database bootstrap](https://github.com/www-zaq-ai/zaq/blob/v0.19.0/docs/database-setup.md)
+[deployment](https://github.com/www-zaq-ai/zaq/blob/v0.19.1/docs/operations/deployment.md)
+and [database bootstrap](https://github.com/www-zaq-ai/zaq/blob/v0.19.1/docs/database-setup.md)
 contracts. This chart does not deploy a PostgreSQL server, create credentials,
 create StorageClasses, or implement billing or Customer Portal integration.
 
@@ -76,7 +76,7 @@ delete receipts or migration ledgers to force bootstrap.
 
 ### Owner privilege scope
 
-**ZAQ v0.19.0 requires `CREATEROLE` for the application owner. This permission
+**ZAQ v0.19.1 requires `CREATEROLE` for the application owner. This permission
 is cluster-wide, not confined to the ZAQ database.** Treat its credentials as
 role-administration credentials, not a schema-isolated account. Separate ZAQ
 databases/logins on a shared server do not sandbox this capability. Obtain
@@ -84,21 +84,21 @@ database-operator approval and evaluate the server's trust boundary before
 deploying; the chart does not provision a separate PostgreSQL server.
 
 The owner remains `NOSUPERUSER`, `NOCREATEDB`, `NOREPLICATION`, `NOBYPASSRLS`,
-and `NOINHERIT`. The reader also remains `NOCREATEROLE`. v0.19.0 permits the
+and `NOINHERIT`. The reader also remains `NOCREATEROLE`. v0.19.1 permits the
 owner's ADMIN-only memberships in non-administrative roles without inheritance
 or SET ROLE access; those validation checks detect drift, not arbitrary owner
-SQL. See the [upstream privilege contract](https://github.com/www-zaq-ai/zaq/blob/v0.19.0/docs/database-setup.md#owner-managed-logins-and-schema-access).
+SQL. See the [upstream privilege contract](https://github.com/www-zaq-ai/zaq/blob/v0.19.1/docs/database-setup.md#owner-managed-logins-and-schema-access).
 v0.18.0 instead uses an owner with `NOCREATEROLE`.
 
 ### Upgrading the v0.18.0 owner contract
 
-An existing v0.18.0 owner normally has `NOCREATEROLE`. v0.19.0's receipt check
+An existing v0.18.0 owner normally has `NOCREATEROLE`. v0.19.1's receipt check
 refuses that state before migrations; restarting/bootstrap does not silently
 repair it. Provisioning-disabled deployments need the same reviewed privileges
 prepared externally, not a bypass of the application contract.
 
 Before upgrading, back up, stop ZAQ and migrators, and have the DBA follow
-the [upstream existing-deployment procedure](https://github.com/www-zaq-ai/zaq/blob/v0.19.0/docs/database-setup.md#enable-owner-managed-logins-on-an-existing-deployment):
+the [upstream existing-deployment procedure](https://github.com/www-zaq-ai/zaq/blob/v0.19.1/docs/database-setup.md#enable-owner-managed-logins-on-an-existing-deployment):
 review the correct owner and explicitly grant it `CREATEROLE`. With `pg_search`
 installed, the DBA must also review/grant `pdb` schema USAGE with grant option.
 Then deploy the new image and let the normal provisioning validation and
@@ -122,24 +122,22 @@ downtime but avoids overlapping first-run provisioning and RWO volume attachment
 
 ### Database transport limitation
 
-**The released v0.18.0 and v0.19.0 configurations do not enable TLS for ZAQ's
-Ecto database connection.** The generated owner URL does not configure
-certificate validation.
-`database.provisioning.sslMode` affects only the init container's libpq client
-and does not secure the application connection.
+**ZAQ v0.19.1 supports verified application database TLS.** Enable
+`database.tls.enabled` for verified
+certificate-chain and hostname checks. With no CA Secret selected, the image
+uses system trust. TLS remains opt-in; without it, use an appropriately
+isolated/trusted database network.
 
-Use an appropriately isolated/trusted database network. Do not deploy across an
-untrusted network or claim end-to-end database TLS with this image. A deployment
-requiring verified database TLS needs an upstream-compatible image/configuration
-change; the chart deliberately does not pretend that `PGSSLMODE` configures Ecto.
+The same switch enables TLS for the init container's libpq connections and
+preflight. They share `database.tls.libpqMode`, default `verify-full`; `verify-ca`
+and `require` are available for less strict libpq verification without weakening
+the application. With TLS off, all clients use plaintext, not opportunistic TLS.
+Remove old per-client `sslMode` keys when upgrading saved values.
 Use a direct primary endpoint: poolers/load-balanced replicas can violate ZAQ's
 bootstrap server identity checks.
 
-The chart also has dedicated application TLS and CA-Secret settings for a fixed
-image containing ZAQ PR #943. They do not add TLS support to an older image or
-override provisioning's independent libpq settings. See
-[database TLS](database-tls.md) for image gating, verified connections, and
-CA-only projection from an existing DBA Secret.
+See [database TLS](database-tls.md) for version requirements, verified connections,
+and CA-only projection from an existing DBA Secret.
 
 ## Pre-existing Secrets
 
@@ -261,7 +259,7 @@ or create a `documents` data source. See the upstream deployment guide.
 
 ## Application compatibility
 
-The default image is **v0.19.0**. The integration suite covers fresh installation
+The default image is **v0.19.1**. The integration suite covers fresh installation
 and verifies refusal of a v0.18.0 owner until the documented DBA maintenance,
 then tests migration with persisted database rows and files. This does not
 validate every populated production database: back up
@@ -269,8 +267,11 @@ first and test against a disposable restored copy. Never bypass bootstrap
 receipts or migration ledgers to force an upgrade; Helm rollback does not
 reverse database migrations.
 
-Minimum ZAQ version: **0.18.0**, annotated in `Chart.yaml`. No maximum is imposed.
-`v0.18.0` and `0.18.0` compare identically, but the actual tag is not rewritten.
+Minimum ZAQ version: **0.19.1**, annotated in `Chart.yaml`. No maximum is imposed.
+`v0.19.1` and `0.19.1` compare identically, but the actual tag is not rewritten.
+Older images, including custom/digest declarations below this minimum, are
+rejected. Existing older deployments must upgrade the application with the chart;
+v0.18.0 owners still require the approved external DBA maintenance described above.
 Prereleases below the stable minimum are rejected; later semantic prereleases
 are permitted but not claimed tested. Build metadata does not change ordering.
 

@@ -75,7 +75,7 @@ class PreflightTests(unittest.TestCase):
     def test_invalid_configuration(self):
         invalid = [{"enabled": "true"}, {"activeDeadlineSeconds": 0}, {"activeDeadlineSeconds": 601},
                    {"connectTimeoutSeconds": 0}, {"ttlSecondsAfterFinished": 59},
-                   {"ttlSecondsAfterFinished": 86401}, {"sslMode": "invalid"},
+                   {"ttlSecondsAfterFinished": 86401}, {"sslMode": "require"},
                    {"enabled": True, "activeDeadlineSeconds": 15, "connectTimeoutSeconds": 15},
                    {"password": "forbidden"}]
         for value in invalid:

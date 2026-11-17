@@ -27,7 +27,7 @@ questions:
     default: ""
     type: string
     label: Application-owner login name
-    description: Empty derives a unique login name. ZAQ v0.19.0 requires cluster-wide CREATEROLE for this owner; it is not confined to this database. This is a username, never a password.
+    description: Empty derives a unique login name. ZAQ v0.19.1 requires cluster-wide CREATEROLE for this owner; it is not confined to this database. This is a username, never a password.
     group: Database
   - variable: database.reader
     default: ""
@@ -39,7 +39,7 @@ questions:
     default: true
     type: boolean
     label: Provision the database and owner/reader logins
-    description: Requires a superuser DBA. ZAQ v0.19.0 grants the owner cluster-wide CREATEROLE, not the reader. Existing v0.18.0 deployments need reviewed external DBA maintenance before upgrading. Disable for a DBA-prepared database; no PostgreSQL server is installed by this chart.
+    description: Requires a superuser DBA. ZAQ v0.19.1 grants the owner cluster-wide CREATEROLE, not the reader. Existing v0.18.0 deployments need reviewed external DBA maintenance before upgrading. Disable for a DBA-prepared database; no PostgreSQL server is installed by this chart.
     group: Database
   - variable: database.provisioning.existingSecret
     default: zaq-dba
@@ -76,14 +76,6 @@ questions:
     options: [auto, postgres, paradedb]
     required: true
     label: Database engine capability selection
-    show_if: database.provisioning.enabled=true
-    group: Database
-  - variable: database.provisioning.sslMode
-    default: prefer
-    type: enum
-    options: [disable, allow, prefer, require, verify-ca, verify-full]
-    label: Provisioning libpq TLS mode
-    description: Independent DBA/reader libpq mode in the init container, not application TLS. Choose verify-full for certificate and hostname verification. Uses the selected shared CA bundle or system trust.
     show_if: database.provisioning.enabled=true
     group: Database
   - variable: secrets.existingSecret
@@ -142,14 +134,6 @@ questions:
     required: true
     label: Connection/query timeout (seconds)
     description: Must be shorter than the Job deadline.
-    show_if: preflight.enabled=true
-    group: Prerequisite check
-  - variable: preflight.sslMode
-    default: prefer
-    type: enum
-    options: [disable, allow, prefer, require, verify-ca, verify-full]
-    label: Preflight libpq TLS mode
-    description: Independent libpq mode for this read-only check, not application TLS. Choose verify-full for verified TLS; uses the shared CA bundle or system trust.
     show_if: preflight.enabled=true
     group: Prerequisite check
   - variable: persistence.enabled
@@ -250,23 +234,26 @@ questions:
     description: Name in this namespace of an existing TLS Secret or one cert-manager will create. Enter a name only, never certificate/private-key values. Clear the advanced ingress.tls list when enabling this option.
     show_if: ingress.enabled=true&&ingress.tlsEnabled=true
     group: Networking
-  - variable: image.databaseTlsSupported
-    default: false
-    type: boolean
-    label: Selected image contains application TLS support
-    description: Confirm only after selecting an image containing ZAQ PR 943 in Values YAML. Published v0.19.0 and earlier lack support. This is an operator assertion, not image inspection.
-    group: Database TLS
   - variable: database.tls.enabled
     default: false
     type: boolean
-    label: Enable verified application database TLS
-    description: Requires a fixed TLS-capable image and the image support confirmation. Verifies the server certificate and hostname, without plaintext fallback. Applies to migrations and the init container's application-owner URL check; does not override provisioning or preflight libpq modes.
+    label: Enable database TLS
+    description: One switch for application, provisioning and preflight. Enabled means verified application TLS without plaintext fallback; disabled means plaintext for every client. Official ZAQ v0.19.1 supports TLS.
+    group: Database TLS
+  - variable: database.tls.libpqMode
+    default: verify-full
+    type: enum
+    options: [require, verify-ca, verify-full]
+    label: Provisioning and preflight TLS mode
+    description: Shared libpq mode when TLS is enabled. verify-full validates certificate chain and hostname (recommended); verify-ca validates only the chain; require enforces encryption without guaranteeing hostname verification. Application TLS always validates both chain and hostname. Ignored when TLS is disabled.
+    show_if: database.tls.enabled=true
     group: Database TLS
   - variable: database.tls.ca.existingSecret
     default: ""
     type: secret
     label: Existing database CA Secret (optional)
-    description: Empty uses system trust. May select the existing DBA Secret; only the selected CA key is mounted, never its credential keys. Also supplies the CA for independent provisioning/preflight libpq checks.
+    description: Empty uses system trust for certificate verification. May select the existing DBA Secret; only the selected CA key is mounted, never its credential keys. Shared by application, provisioning and preflight; ignored when TLS is disabled.
+    show_if: database.tls.enabled=true
     group: Database TLS
   - variable: database.tls.ca.key
     default: ca.crt
@@ -274,4 +261,5 @@ questions:
     required: true
     label: CA bundle key name
     description: Key containing a PEM CA bundle in the selected Secret, not a private key or credential value. Used only when a CA Secret is selected.
+    show_if: database.tls.enabled=true
     group: Database TLS

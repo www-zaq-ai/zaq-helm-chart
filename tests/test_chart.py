@@ -67,6 +67,24 @@ class ChartTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(jsonschema.ValidationError):
                 jsonschema.validate(dict(DEFAULTS, **{key: "not-allowed"}), SCHEMA)
 
+    def test_rancher_global_metadata_is_accepted_without_changing_resources(self):
+        baseline = documents(render())
+        for metadata in [{}, {"cattle": {"clusterId": "c-example", "projectId": "p-example",
+                                        "systemProjectId": "p-system", "url": "https://rancher.example.org"},
+                             "fleet": {"clusterLabels": {"environment": "test"}}}]:
+            with self.subTest(metadata=metadata):
+                jsonschema.validate(dict(DEFAULTS, **{"global": metadata}), SCHEMA)
+                self.assertEqual(documents(render({"global": metadata})), baseline)
+
+    def test_global_exception_preserves_strict_schema_validation(self):
+        for values in [{"global": value} for value in [None, "invalid", [], 1, True]] + [
+                {"global": {}, "unrelatedRootField": True},
+                {"global": {}, "app": dict(DEFAULTS["app"], unknown=True)}]:
+            with self.subTest(values=values):
+                with self.assertRaises(jsonschema.ValidationError):
+                    jsonschema.validate(dict(DEFAULTS, **values), SCHEMA)
+                self.assertNotEqual(render(values).returncode, 0)
+
     def test_defaults(self):
         docs = documents(render())
         self.assertEqual({d["kind"] for d in docs},
@@ -187,18 +205,20 @@ class ChartTests(unittest.TestCase):
         self.assertEqual(app["startupProbe"]["failureThreshold"], 120)
 
     def test_version_compatibility(self):
-        for version in ["v0.18.0", "0.18.0", "v0.19.0", "v1.0.0", "v0.19.0-rc.1", "v0.18.0+build.1"]:
+        for version in ["v0.19.1", "0.19.1", "v1.0.0", "v0.19.2-rc.1", "v0.19.1+build.1"]:
             with self.subTest(version=version):
                 documents(render({"image": {"tag": version}}))
-        for version in ["v0.17.9", "0.12.0", "v0.18.0-rc.1", "v0.9.0", "v0.18", "latest", "v0.19.0-01"]:
+        for version in ["v0.17.9", "0.12.0", "v0.18.0", "0.18.0", "v0.19.0", "0.19.0",
+                        "v0.19.1-rc.1", "v0.9.0", "v0.19", "latest", "v0.19.1-01"]:
             with self.subTest(version=version):
                 self.assertNotEqual(render({"image": {"tag": version}}).returncode, 0)
-        documents(render({"image": {"tag": "custom", "appVersion": "v0.18.0"}}))
+        documents(render({"image": {"tag": "custom", "appVersion": "v0.19.1"}}))
         digest = "sha256:" + "a" * 64
         self.assertNotEqual(render({"image": {"digest": digest}}).returncode, 0)
-        docs = documents(render({"image": {"digest": digest, "appVersion": "0.18.0"}}))
+        docs = documents(render({"image": {"digest": digest, "appVersion": "0.19.1"}}))
         self.assertTrue(pod(docs)["containers"][0]["image"].endswith("@" + digest))
-        for image in [{"tag": "v0.18.0", "appVersion": "0.19.0"}, {"tag": "custom", "appVersion": "0.17.0"},
+        for image in [{"tag": "v0.19.1", "appVersion": "0.19.2"}, {"tag": "custom", "appVersion": "0.19.0"},
+                      {"digest": digest, "appVersion": "0.19.0"},
                       {"tag": "custom", "appVersion": "banana"}]:
             with self.subTest(image=image):
                 self.assertNotEqual(render({"image": image}).returncode, 0)

@@ -110,6 +110,19 @@ class PresentationTests(unittest.TestCase):
                           "database": {"provisioning": {"enabled": False}},
                           "preflight": {"enabled": True}}))
 
+    def test_database_tls_has_one_switch_and_conditional_shared_mode(self):
+        questions = {q["variable"]: q for q in self.questions}
+        self.assertNotIn("database.provisioning.sslMode", questions)
+        self.assertNotIn("preflight.sslMode", questions)
+        self.assertEqual(questions["database.tls.libpqMode"]["options"], ["require", "verify-ca", "verify-full"])
+        enabled = copy.deepcopy(DEFAULTS)
+        enabled["database"]["tls"]["enabled"] = True
+        for name in ["database.tls.libpqMode", "database.tls.ca.existingSecret", "database.tls.ca.key"]:
+            self.assertFalse(visible(questions[name], DEFAULTS))
+            self.assertTrue(visible(questions[name], enabled))
+        documents(render({"database": {"tls": {"enabled": True, "libpqMode": "verify-ca"}},
+                          "preflight": {"enabled": True}}))
+
     def test_ingress_form_tls_visibility_and_typed_answers(self):
         questions = {q["variable"]: q for q in self.questions}
         self.assertEqual(questions["ingress.annotations"]["type"], "map[string]")
@@ -142,12 +155,13 @@ class PresentationTests(unittest.TestCase):
                 self.assertIn("zaq/questions.yaml", files)
                 readme = package.extractfile("zaq/README.md").read().decode()
                 self.assertIn("secretKeyRef", (CHART / "templates/_helpers.tpl").read_text())
-                self.assertIn("do not enable TLS", readme)
+                self.assertIn("v0.19.1 image includes verified application TLS", readme)
+                self.assertIn("global.cattle", readme)
                 self.assertIn("https://github.com/www-zaq-ai/zaq-helm-chart/blob/main/docs/", readme)
                 self.assertEqual(yaml.safe_load(package.extractfile("zaq/questions.yaml"))["questions"], self.questions)
 
     def test_icon_is_pinned_official_asset_and_default_application_version(self):
         chart = yaml.safe_load((CHART / "Chart.yaml").read_text())
         self.assertRegex(chart["icon"], r"^https://raw\.githubusercontent\.com/www-zaq-ai/zaq/[a-f0-9]{40}/priv/static/images/zaq\.png$")
-        self.assertEqual(chart["appVersion"], "0.19.0")
+        self.assertEqual(chart["appVersion"], "0.19.1")
         self.assertIn("agents", chart["keywords"])

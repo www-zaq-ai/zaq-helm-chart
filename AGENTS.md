@@ -48,19 +48,28 @@ README focused on the project overview, quick start, and documentation links.
 - Select existing storage classes or reuse PVCs. Mount data at `/zaq/volumes`.
 - Use `/channels/health` with `X-Forwarded-Proto: https` for HTTP probes on port
   `4000`; verify HTTP 200 rather than redirect success.
-- Enforce minimum application version `0.18.0`, with no maximum. Normalize an
+- Enforce minimum application version `0.19.1`, with no maximum. Normalize an
   optional leading `v` only for comparisons, never for changing the image tag.
 - Keep chart and application versions independent.
 - Match PostgreSQL role checks to the selected upstream release: v0.18.0 uses
-  an owner with NOCREATEROLE; v0.19.0 requires cluster-wide CREATEROLE. The reader
-  remains NOCREATEROLE. Document that broader owner privilege explicitly.
+  an owner with NOCREATEROLE; supported v0.19.1 requires cluster-wide CREATEROLE.
+  The reader remains NOCREATEROLE. Document that broader owner privilege explicitly.
   Existing v0.18.0 deployments require approved external DBA maintenance before
-  v0.19.0; never automate this repair or bypass receipts/ledgers in the chart.
-- Application database TLS requires an explicitly declared fixed image containing
-  ZAQ PR #943; published v0.19.0 and earlier lack it. Keep application TLS and
-  provisioning/preflight libpq modes independent. A shared CA may reuse the DBA
-  Secret, but project only its selected CA key, never credential keys. Do not
-  invent a supporting release version or silently enable TLS on an old image.
+  v0.19.1; never automate this repair or bypass receipts/ledgers in the chart.
+- Application database TLS is available in published v0.19.1, including its
+  corrected Docker packaging. Keep application TLS opt-in through
+  `database.tls.enabled`; do not add a redundant image-support confirmation.
+  Custom images must implement their declared `image.appVersion`. One switch
+  controls every client; shared `database.tls.libpqMode` accepts only `require`,
+  `verify-ca` or `verify-full` and is used only with TLS enabled. Application TLS
+  always verifies chain and hostname; switch-off means plaintext for every client
+  with no CA projection. A shared CA may reuse the DBA Secret, but project only
+  its selected CA key, never credential keys.
+  libpq's `sslrootcert=system` requires `verify-full`; for `verify-ca` without a
+  CA Secret, use the released image's `/etc/ssl/certs/ca-certificates.crt` bundle.
+  Do not silently enable TLS or relax the minimum for an old image.
+  Allow Rancher/Helm `global` metadata only as an object; keep other
+  root/application validation strict.
 
 ## Code quality
 
@@ -148,12 +157,13 @@ behavior justify it, rather than repeating successful unrelated suites.
 For database TLS, additionally run:
 
 ```sh
-ZAQ_TLS_TEST_IMAGE=your-local-fixed-image:tag python -u tests/integration_tls.py
+python -u tests/integration_tls.py
 ```
 
-Use an actual fixed image. The ordinary published-image suite does not prove
-TLS; report unavailable image/build tooling as a blocker, not a passing
-integration. See `docs/database-tls.md`.
+The TLS suite defaults to the pinned published v0.19.1 image. A local override
+through `ZAQ_TLS_TEST_IMAGE` must implement at least v0.19.1 with actual TLS
+support. The ordinary non-TLS suite does not prove TLS; report unavailable
+image/build tooling as a blocker, not a passing integration. See `docs/database-tls.md`.
 
 ### Workflow changes
 

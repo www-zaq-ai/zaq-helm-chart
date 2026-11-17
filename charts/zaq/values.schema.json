@@ -10,7 +10,7 @@
     "identity": {"type": "string", "maxLength": 63, "pattern": "^([a-z_][a-z0-9_]{0,62})?$"},
     "annotations": {"type": "object", "additionalProperties": {"type": "string"}},
     "envName": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
-    "libpqSslMode": {"enum": ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"]},
+    "libpqSslMode": {"enum": ["require", "verify-ca", "verify-full"]},
     "probe": {
       "type": "object", "additionalProperties": false,
       "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"],
@@ -31,6 +31,7 @@
     "quantities": {"type": "object", "additionalProperties": {"type": ["string", "number"]}}
   },
   "properties": {
+    "global": {"type": "object", "additionalProperties": true},
     "nameOverride": {"type": "string", "maxLength": 63, "pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?)?$"},
     "fullnameOverride": {"type": "string", "maxLength": 63, "pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?)?$"},
     "replicaCount": {"type": "integer", "minimum": 1},
@@ -46,14 +47,13 @@
     },
     "image": {
       "type": "object", "additionalProperties": false,
-      "required": ["repository", "tag", "digest", "pullPolicy", "appVersion", "databaseTlsSupported"],
+      "required": ["repository", "tag", "digest", "pullPolicy", "appVersion"],
       "properties": {
         "repository": {"$ref": "#/definitions/nonempty"},
         "tag": {"$ref": "#/definitions/nonempty"},
         "digest": {"type": "string", "pattern": "^(sha256:[a-f0-9]{64})?$"},
         "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
-        "appVersion": {"type": "string"},
-        "databaseTlsSupported": {"type": "boolean"}
+        "appVersion": {"type": "string"}
       }
     },
     "imagePullSecrets": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {"name": {"$ref": "#/definitions/secretName"}}}},
@@ -73,8 +73,9 @@
       "type": "object", "additionalProperties": false,
       "required": ["host", "port", "name", "owner", "reader", "poolSize", "ipv6", "provisioning", "tls"],
       "properties": {
-        "tls": {"type": "object", "additionalProperties": false, "required": ["enabled", "ca"], "properties": {
+        "tls": {"type": "object", "additionalProperties": false, "required": ["enabled", "libpqMode", "ca"], "properties": {
           "enabled": {"type": "boolean"},
+          "libpqMode": {"$ref": "#/definitions/libpqSslMode"},
           "ca": {"type": "object", "additionalProperties": false, "required": ["existingSecret", "key"], "properties": {
             "existingSecret": {"type": "string", "maxLength": 253, "pattern": "^([a-z0-9]([a-z0-9.-]*[a-z0-9])?)?$"},
             "key": {"$ref": "#/definitions/key"}
@@ -89,7 +90,7 @@
         "ipv6": {"type": "boolean"},
         "provisioning": {
           "type": "object", "additionalProperties": false,
-          "required": ["enabled", "maintenanceDatabase", "engine", "sslMode", "resources", "securityContext"],
+          "required": ["enabled", "maintenanceDatabase", "engine", "resources", "securityContext"],
           "properties": {
             "enabled": {"type": "boolean"},
             "existingSecret": {"type": "string", "maxLength": 253, "pattern": "^([a-z0-9]([a-z0-9.-]*[a-z0-9])?)?$"},
@@ -98,7 +99,6 @@
             }},
             "maintenanceDatabase": {"type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-z_][a-z0-9_]*$"},
             "engine": {"enum": ["auto", "postgres", "paradedb"]},
-            "sslMode": {"$ref": "#/definitions/libpqSslMode"},
             "resources": {"$ref": "#/definitions/resources"},
             "securityContext": {"type": "object"}
           },
@@ -129,13 +129,12 @@
     },
     "preflight": {
       "type": "object", "additionalProperties": false,
-      "required": ["enabled", "activeDeadlineSeconds", "connectTimeoutSeconds", "ttlSecondsAfterFinished", "sslMode", "resources", "securityContext"],
+      "required": ["enabled", "activeDeadlineSeconds", "connectTimeoutSeconds", "ttlSecondsAfterFinished", "resources", "securityContext"],
       "properties": {
         "enabled": {"type": "boolean"},
         "activeDeadlineSeconds": {"type": "integer", "minimum": 15, "maximum": 600},
         "connectTimeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 30},
         "ttlSecondsAfterFinished": {"type": "integer", "minimum": 60, "maximum": 86400},
-        "sslMode": {"$ref": "#/definitions/libpqSslMode"},
         "resources": {"$ref": "#/definitions/resources"},
         "securityContext": {"type": "object"}
       }
