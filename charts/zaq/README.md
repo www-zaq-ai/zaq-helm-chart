@@ -4,7 +4,7 @@
 system for people, AI agents, and organizational knowledge. This chart deploys
 an isolated instance with persistent storage and optional HTTPS ingress, using
 an **external PostgreSQL server** and **pre-existing Kubernetes Secrets**.
-The default and minimum supported image version is **ZAQ v0.19.1**.
+The default image is **ZAQ v0.19.2**; the minimum supported version is **v0.19.1**.
 Chart and application versions are independent.
 
 ## Before installing
@@ -14,7 +14,7 @@ Chart and application versions are independent.
   The server may be outside Kubernetes or in another namespace.
 - For automatic bootstrap, a superuser DBA account. Otherwise prepare the
   database/owner externally and disable provisioning.
-- **ZAQ v0.19.1 requires cluster-wide `CREATEROLE` for the application owner.**
+- **ZAQ v0.19.1 and later require cluster-wide `CREATEROLE` for the application owner.**
   This is role-administration capability, not schema isolation. Review shared
   PostgreSQL trust boundaries with the DBA before deploying.
 - Create a deployment Secret in the release namespace with `owner-password`,
@@ -83,7 +83,7 @@ Secret name alone is ignored with the checkbox off.
 
 ## Database TLS
 
-The default v0.19.1 image includes verified application TLS. It remains opt-in:
+The default v0.19.2 image includes verified application TLS. It remains opt-in:
 enable `database.tls.enabled` for application, provisioning and preflight without
 a separate image-support confirmation.
 This uses verified TLS with no plaintext fallback. With no CA Secret, it uses system
@@ -167,12 +167,12 @@ token/RBAC.
 
 - When upgrading from v0.18.0, stop ZAQ/migrators and arrange the
   [upstream DBA maintenance](https://github.com/www-zaq-ai/zaq/blob/v0.19.1/docs/database-setup.md#enable-owner-managed-logins-on-an-existing-deployment)
-  before normal v0.19.1 startup: approve/grant owner `CREATEROLE` and, when
+  before starting v0.19.1 or later: approve/grant owner `CREATEROLE` and, when
   `pg_search` is installed, `pdb` USAGE with grant option. Existing receipts
   reject the old privilege contract; Helm never repairs it or bypasses ledgers.
-- **Application TLS is separate from preflight/init-container libpq modes.**
-  Configure both explicitly as needed. TLS is opt-in even though v0.19.1
-  supports it; use a trusted database network while application TLS is disabled.
+- **Database TLS remains opt-in for all clients.** Enable it with
+  `database.tls.enabled`, then select a libpq verification mode if needed.
+  Use a trusted database network while TLS is disabled.
 - ZAQ seeds an initial `admin`/`admin` Back Office account with mandatory password
   change. Restrict public access until setup at `/bo/login` is complete.
 - Keep encryption keys stable. Changing a Secret does not rotate DB passwords.

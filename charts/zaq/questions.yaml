@@ -27,7 +27,7 @@ questions:
     default: ""
     type: string
     label: Application-owner login name
-    description: Empty derives a unique login name. ZAQ v0.19.1 requires cluster-wide CREATEROLE for this owner; it is not confined to this database. This is a username, never a password.
+    description: Empty derives a unique login name. ZAQ v0.19.1 and later require cluster-wide CREATEROLE for this owner; it is not confined to this database. This is a username, never a password.
     group: Database
   - variable: database.reader
     default: ""
@@ -39,7 +39,7 @@ questions:
     default: true
     type: boolean
     label: Provision the database and owner/reader logins
-    description: Requires a superuser DBA. ZAQ v0.19.1 grants the owner cluster-wide CREATEROLE, not the reader. Existing v0.18.0 deployments need reviewed external DBA maintenance before upgrading. Disable for a DBA-prepared database; no PostgreSQL server is installed by this chart.
+    description: Requires a superuser DBA. ZAQ v0.19.1 and later grant the owner cluster-wide CREATEROLE, not the reader. Existing v0.18.0 deployments need reviewed external DBA maintenance before upgrading. Disable for a DBA-prepared database; no PostgreSQL server is installed by this chart.
     group: Database
   - variable: database.provisioning.existingSecret
     default: zaq-dba
@@ -238,7 +238,7 @@ questions:
     default: false
     type: boolean
     label: Enable database TLS
-    description: One switch for application, provisioning and preflight. Enabled means verified application TLS without plaintext fallback; disabled means plaintext for every client. Official ZAQ v0.19.1 supports TLS.
+    description: One switch for application, provisioning and preflight. Enabled means verified application TLS without plaintext fallback; disabled means plaintext for every client. Official ZAQ images support TLS starting at v0.19.1.
     group: Database TLS
   - variable: database.tls.libpqMode
     default: verify-full

@@ -120,10 +120,10 @@ automatic checksum rollout.
 
 ## Upgrade
 
-For **v0.18.0 → v0.19.1**, first obtain approval for the owner's new cluster-wide
-`CREATEROLE` privilege and arrange the
+When upgrading **from v0.18.0 to v0.19.1 or later**, first obtain approval for
+the owner's new cluster-wide `CREATEROLE` privilege and arrange the
 [external DBA maintenance](deployment.md#upgrading-the-v0180-owner-contract).
-Stop ZAQ/migrators for that maintenance. Without it, normal v0.19.1 bootstrap
+Stop ZAQ/migrators for that maintenance. Without it, normal bootstrap
 validation refuses the old owner contract; preflight success does not detect
 or fix this. Do not bypass the guard or delete a receipt/ledger to proceed.
 

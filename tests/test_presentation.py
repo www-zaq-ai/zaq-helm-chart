@@ -155,7 +155,7 @@ class PresentationTests(unittest.TestCase):
                 self.assertIn("zaq/questions.yaml", files)
                 readme = package.extractfile("zaq/README.md").read().decode()
                 self.assertIn("secretKeyRef", (CHART / "templates/_helpers.tpl").read_text())
-                self.assertIn("v0.19.1 image includes verified application TLS", readme)
+                self.assertIn("v0.19.2 image includes verified application TLS", readme)
                 self.assertIn("global.cattle", readme)
                 self.assertIn("https://github.com/www-zaq-ai/zaq-helm-chart/blob/main/docs/", readme)
                 self.assertEqual(yaml.safe_load(package.extractfile("zaq/questions.yaml"))["questions"], self.questions)
@@ -163,5 +163,5 @@ class PresentationTests(unittest.TestCase):
     def test_icon_is_pinned_official_asset_and_default_application_version(self):
         chart = yaml.safe_load((CHART / "Chart.yaml").read_text())
         self.assertRegex(chart["icon"], r"^https://raw\.githubusercontent\.com/www-zaq-ai/zaq/[a-f0-9]{40}/priv/static/images/zaq\.png$")
-        self.assertEqual(chart["appVersion"], "0.19.1")
+        self.assertEqual(chart["appVersion"], "0.19.2")
         self.assertIn("agents", chart["keywords"])

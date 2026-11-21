@@ -160,7 +160,7 @@ For database TLS, additionally run:
 python -u tests/integration_tls.py
 ```
 
-The TLS suite defaults to the pinned published v0.19.1 image. A local override
+The TLS suite defaults to the pinned published v0.19.2 image. A local override
 through `ZAQ_TLS_TEST_IMAGE` must implement at least v0.19.1 with actual TLS
 support. The ordinary non-TLS suite does not prove TLS; report unavailable
 image/build tooling as a blocker, not a passing integration. See `docs/database-tls.md`.

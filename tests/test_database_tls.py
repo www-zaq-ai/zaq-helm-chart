@@ -121,14 +121,17 @@ class DatabaseTlsTests(unittest.TestCase):
         documents(render(self.fixed()))
         self.assertFalse(DEFAULTS["database"]["tls"]["enabled"])
 
-    def test_official_v0191_supports_tls_with_single_switch(self):
-        docs = documents(render({"database": {"tls": {"enabled": True}}},
-                                fixture="tests/fixtures/rancher-global.yaml"))
-        app = pod(docs)["containers"][0]
-        self.assertEqual(app["image"], "ghcr.io/www-zaq-ai/zaq:v0.19.1")
-        self.assertEqual(env(app)["ZAQ_DATABASE_SSL"]["value"], "true")
-        self.assertNotIn("ZAQ_DATABASE_SSL_CA_CERT_FILE", env(app))
-        self.assertEqual(env(pod(docs)["initContainers"][0])["PGSSLMODE"]["value"], "verify-full")
+    def test_default_and_minimum_images_render_tls_with_single_switch(self):
+        for tag, image in [("v0.19.2", {}), ("v0.19.1", {"tag": "v0.19.1"})]:
+            with self.subTest(tag=tag):
+                values = {"image": image, "database": {"tls": {"enabled": True}}}
+                docs = documents(render(values, fixture="tests/fixtures/rancher-global.yaml"))
+                spec = pod(docs)
+                app = spec["containers"][0]
+                self.assertEqual(app["image"], f"ghcr.io/www-zaq-ai/zaq:{tag}")
+                self.assertEqual(env(app)["ZAQ_DATABASE_SSL"]["value"], "true")
+                self.assertNotIn("ZAQ_DATABASE_SSL_CA_CERT_FILE", env(app))
+                self.assertEqual(env(spec["initContainers"][0])["PGSSLMODE"]["value"], "verify-full")
 
     def test_old_per_client_mode_keys_are_rejected(self):
         for values in [{"database": {"provisioning": {"sslMode": "require"}}},

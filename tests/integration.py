@@ -23,7 +23,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CHART = Path(os.environ.get("ZAQ_CHART_PATH", ROOT / "charts" / "zaq"))
-APP_IMAGE = "ghcr.io/www-zaq-ai/zaq@sha256:87dbd30329b682718d6b6947f191272f982796593fcd31c5cc412e642d79ec2d"
+APP_VERSION = "0.19.2"
+APP_IMAGE = "ghcr.io/www-zaq-ai/zaq@sha256:64665dcb331b79993840b62e467c3c4f343d7be2252d4b18392391ec0a463860"
 PREVIOUS_APP_IMAGE = "ghcr.io/www-zaq-ai/zaq@sha256:9bf0f9ae2299e777b56564992691eafb119d0ccba9f6d40696a1efe63a81097a"
 # Start old deployments with their actual chart contract, never lower the new
 # chart's minimum to make a legacy image pass. Source is immutable and verified.
@@ -218,7 +219,7 @@ def main():
             run(helm + ["uninstall", "mock", "--wait"])
             assert not [p for p in get("pvc")["items"] if p["metadata"]["name"] == "mock-zaq"]
 
-            values = {"image": {"digest": APP_IMAGE.split("@")[1], "appVersion": "0.19.1"},
+            values = {"image": {"digest": APP_IMAGE.split("@")[1], "appVersion": APP_VERSION},
                       "global": {"cattle": {"clusterId": "c-integration", "projectId": "p-integration",
                                             "url": "https://rancher.example.org"}},
                       "database": {"host": "postgresql.database-test.svc.cluster.local", "name": "integration_zaq", "owner": "integration_owner", "reader": "integration_reader"},
@@ -307,7 +308,7 @@ def main():
             assert sql("INSERT INTO public.chart_acl_test VALUES (2);", "reader", "integration_zaq", check=False).returncode != 0
             flags = sql("SELECT rolname,rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls,rolinherit "
                         "FROM pg_roles WHERE rolname IN ('integration_owner','integration_reader') ORDER BY rolname;").stdout.splitlines()
-            # v0.19.1 requires cluster-wide CREATEROLE for the owner;
+            # ZAQ v0.19.1 and later require cluster-wide CREATEROLE for the owner;
             # every other administrative flag and all reader flags remain denied.
             assert flags == ["integration_owner|f|f|t|f|f|f", "integration_reader|f|f|f|f|f|f"], flags
             receipt = sql("SELECT count(*) FROM zaq_bootstrap.receipt;", database="integration_zaq").stdout.strip()
@@ -391,7 +392,7 @@ def main():
             assert missing_pod["status"]["containerStatuses"][0]["state"]["waiting"]["reason"] == "CreateContainerConfigError"
             run(helm + ["uninstall", "missing-env", "--wait"])
 
-            print("Testing historical-chart v0.18.0 to current-chart v0.19.1 upgrade with persistent data", flush=True)
+            print(f"Testing historical-chart v0.18.0 to current-chart v{APP_VERSION} upgrade with persistent data", flush=True)
             upgrade_values = copy.deepcopy(values)
             upgrade_values["image"] = {"tag": "v0.18.0", "digest": PREVIOUS_APP_IMAGE.split("@")[1], "appVersion": "0.18.0"}
             upgrade_values["database"].update({"name": "upgrade_zaq", "owner": "upgrade_owner", "reader": "upgrade_reader", "provisioning": {"enabled": True}})
@@ -406,9 +407,9 @@ def main():
                            "from pathlib import Path; Path('/zaq/volumes/chart-upgrade').write_text('retained')"])
             before_passwords = sql("SELECT rolname,rolpassword FROM pg_authid WHERE rolname IN ('upgrade_owner','upgrade_reader') ORDER BY rolname;").stdout
             before_migrations = set(sql("SELECT version FROM public.schema_migrations;", database="upgrade_zaq").stdout.splitlines())
-            upgrade_values["image"] = {"tag": "v0.19.1", "digest": APP_IMAGE.split("@")[1], "appVersion": "0.19.1"}
+            upgrade_values["image"] = copy.deepcopy(values["image"])
             upgrade_values["global"] = copy.deepcopy(values["global"])
-            print("Verifying v0.19.1 refuses an unmigrated owner privilege contract", flush=True)
+            print(f"Verifying v{APP_VERSION} refuses an unmigrated owner privilege contract", flush=True)
             install("upgrade", upgrade_values, upgrade=True, expect_failure=True)
             assert sql("SELECT rolcreaterole FROM pg_roles WHERE rolname='upgrade_owner';").stdout.strip() == "f"
             assert before_migrations == set(sql("SELECT version FROM public.schema_migrations;", database="upgrade_zaq").stdout.splitlines())

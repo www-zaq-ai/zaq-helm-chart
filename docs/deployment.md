@@ -76,9 +76,10 @@ delete receipts or migration ledgers to force bootstrap.
 
 ### Owner privilege scope
 
-**ZAQ v0.19.1 requires `CREATEROLE` for the application owner. This permission
-is cluster-wide, not confined to the ZAQ database.** Treat its credentials as
-role-administration credentials, not a schema-isolated account. Separate ZAQ
+**ZAQ v0.19.1 and later require `CREATEROLE` for the application owner.**
+**This permission is cluster-wide, not confined to the ZAQ database.**
+Treat its credentials as role-administration credentials, not a
+schema-isolated account. Separate ZAQ
 databases/logins on a shared server do not sandbox this capability. Obtain
 database-operator approval and evaluate the server's trust boundary before
 deploying; the chart does not provision a separate PostgreSQL server.
@@ -122,7 +123,7 @@ downtime but avoids overlapping first-run provisioning and RWO volume attachment
 
 ### Database transport limitation
 
-**ZAQ v0.19.1 supports verified application database TLS.** Enable
+**ZAQ v0.19.1 and later support verified application database TLS.** Enable
 `database.tls.enabled` for verified
 certificate-chain and hostname checks. With no CA Secret selected, the image
 uses system trust. TLS remains opt-in; without it, use an appropriately
@@ -259,7 +260,7 @@ or create a `documents` data source. See the upstream deployment guide.
 
 ## Application compatibility
 
-The default image is **v0.19.1**. The integration suite covers fresh installation
+The default image is **v0.19.2**. The integration suite covers fresh installation
 and verifies refusal of a v0.18.0 owner until the documented DBA maintenance,
 then tests migration with persisted database rows and files. This does not
 validate every populated production database: back up

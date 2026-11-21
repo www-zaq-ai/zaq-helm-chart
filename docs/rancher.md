@@ -28,7 +28,7 @@ Secret names, hostname, Ingress class/TLS Secret, and StorageClass or PVC.
 The example names `longhorn` and `nginx` are not assumed to exist in every cluster.
 Never enter passwords or application keys into Helm values.
 
-**ZAQ v0.19.1 requires cluster-wide `CREATEROLE` for its application owner.**
+**ZAQ v0.19.1 and later require cluster-wide `CREATEROLE` for the application owner.**
 Review the [shared-server trust implications](deployment.md#owner-privilege-scope)
 with your DBA. For existing v0.18.0 deployments, arrange the documented external
 DBA maintenance before upgrading; Rancher's form and preflight do not repair
@@ -54,9 +54,10 @@ The CA selector is independent so provisioning-disabled deployments can use it.
 Empty means system trust. Enter a PEM CA key name, never certificate contents,
 private keys, or credentials.
 
-The default and minimum ZAQ version is v0.19.1, which includes verified database
-TLS. Enable it with `database.tls.enabled`; no separate image-support checkbox
-is needed. Custom images must implement their declared application version.
+The default ZAQ version is v0.19.2, and verified database TLS is supported
+starting at the minimum version, v0.19.1. Enable it with `database.tls.enabled`;
+no separate image-support checkbox is needed. Custom images must implement
+their declared application version.
 The same switch enables provisioning/preflight TLS. A single shared
 `database.tls.libpqMode` selector appears only when TLS is enabled: `verify-full`
 (recommended), `verify-ca`, or `require`. The latter two weaken only libpq
