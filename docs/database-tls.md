@@ -5,9 +5,9 @@ by one `database.tls.enabled` switch and one shared provisioning/preflight mode.
 
 ## Image support and defaults
 
-The default and minimum supported application version is **v0.19.1**. Its
-[published release](https://github.com/www-zaq-ai/zaq/releases/tag/v0.19.1) includes
-verified database TLS and the Docker packaging fix for its Python URL helper.
+The default application version is **v0.19.2**; the minimum is **v0.19.1**.
+The [v0.19.1 release](https://github.com/www-zaq-ai/zaq/releases/tag/v0.19.1)
+includes verified database TLS and the Docker packaging fix for its Python URL helper.
 Older application versions are rejected, including v0.19.0 which lacked TLS.
 
 Database TLS stays opt-in: set `database.tls.enabled: true` to enable it for all
@@ -35,7 +35,7 @@ Helm values. The default official image supports this configuration:
 
 ```yaml
 image:
-  tag: v0.19.1
+  tag: v0.19.2
 database:
   host: database.example.org
   tls:
@@ -144,7 +144,7 @@ Offline tests cover schema failures, image gating, CA-only DBA-Secret projection
 credential-key rejection, shared modes and switch-off behavior, form mappings,
 and preflight CA forwarding. See [development checks](development.md). The opt-in
 real Kind suite
-uses the pinned published v0.19.1 image and an SSL-required disposable PostgreSQL,
+uses the pinned published v0.19.2 image and an SSL-required disposable PostgreSQL,
 never an existing database. `ZAQ_TLS_TEST_IMAGE` optionally selects a local
 TLS-capable image implementing at least v0.19.1. It checks real migrations,
 SSL sessions, readiness, provisioning, receipt restart, app-only upgrade, rejected

@@ -7,7 +7,7 @@ strategy:
   type: Recreate
 image:
   repository: ghcr.io/www-zaq-ai/zaq
-  tag: v0.19.1
+  tag: v0.19.2
   # Optional immutable digest. A nonempty digest takes precedence over the tag.
   digest: ""
   pullPolicy: IfNotPresent

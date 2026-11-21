@@ -16,7 +16,7 @@ Do not put credentials in any value.
 - `strategy.rollingUpdate`: optional native `maxSurge`/`maxUnavailable` settings;
   omit with `Recreate`.
 - `image.repository`: `ghcr.io/www-zaq-ai/zaq`.
-- `image.tag`: `v0.19.1`; preserved exactly for image pulling.
+- `image.tag`: `v0.19.2`; preserved exactly for image pulling.
 - `image.digest`: `""`; optional `sha256:…`, takes precedence over tag.
 - `image.pullPolicy`: `IfNotPresent`; also `Always` or `Never`.
 - `image.appVersion`: `""`; required full semantic version for digests or
@@ -53,9 +53,9 @@ contents or creates Secret resources. See
   servers; IPv6 literals are not supported by the upstream URL constructor.
 - `database.port`: `5432`.
 - `database.name`: `""`; release/namespace-derived database identity.
-- `database.owner`: `""`; release/namespace-derived owner login. ZAQ v0.19.1
-  requires cluster-wide `CREATEROLE`; it is not a schema-confined identity. See
-  [the privilege/upgrade contract](deployment.md#owner-privilege-scope).
+- `database.owner`: `""`; release/namespace-derived owner login. ZAQ v0.19.1 and
+  later require cluster-wide `CREATEROLE`; it is not a schema-confined identity.
+  See [the privilege/upgrade contract](deployment.md#owner-privilege-scope).
 - `database.reader`: `""`; release/namespace-derived reader login.
 - `database.poolSize`: `10`; application Ecto connection pool size.
 - `database.ipv6`: `false`; set `ECTO_IPV6` for application DNS connections.

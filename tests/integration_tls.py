@@ -1,6 +1,6 @@
 """Real chart TLS tests against a disposable SSL-required Kind PostgreSQL.
 
-Uses the pinned published v0.19.1 image; ZAQ_TLS_TEST_IMAGE can select a local
+Uses the pinned published v0.19.2 image; ZAQ_TLS_TEST_IMAGE can select a local
 TLS-capable image implementing at least v0.19.1 instead.
 No application source is patched. All credentials/certificates are ephemeral;
 only reference names and non-sensitive settings enter Helm values.
@@ -20,7 +20,7 @@ from urllib.parse import quote
 
 import yaml
 
-from integration import APP_IMAGE, CHART, NODE_IMAGE, POSTGRES_IMAGE, ROOT
+from integration import APP_IMAGE, APP_VERSION, CHART, NODE_IMAGE, POSTGRES_IMAGE, ROOT
 
 
 def main():
@@ -144,7 +144,7 @@ def main():
         runtime = {"owner-password": secrets.token_hex(32) + ":@/?#%", "reader-password": secrets.token_hex(32),
                    "secret-key-base": secrets.token_hex(64), "encryption-key": base64.b64encode(secrets.token_bytes(32)).decode()}
         sensitive.extend([dba, *runtime.values()])
-        selected_image = {"appVersion": "0.19.1"}
+        selected_image = {"appVersion": "0.19.1" if local_image else APP_VERSION}
         if local_image:
             selected_image.update(repository=image.rsplit(":", 1)[0], tag=image.rsplit(":", 1)[1], pullPolicy="Never")
         else:

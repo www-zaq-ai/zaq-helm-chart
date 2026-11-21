@@ -42,11 +42,11 @@ Integration separately tests a mock deployment and real ZAQ with disposable
 PostgreSQL, ephemeral Secrets, ACLs/default grants, restart validation, credential
 and migration failures, upgrades, PVC reuse, and uninstall retention. Mock
 readiness alone is not proof that ZAQ deploys successfully.
-Real ZAQ tests use the pinned v0.19.1 image and separately upgrade a pinned
+Real ZAQ tests use the pinned v0.19.2 image and separately upgrade a pinned
 v0.18.0 deployment, preserving database rows, password hashes, migration ledgers,
 bootstrap receipts, and PVC files. Tests explicitly expect owner `CREATEROLE`
-in v0.19.1 while denying other administrative flags and keeping the reader
-restricted. The upgrade test first verifies old-owner refusal, then performs
+in the current image while denying other administrative flags and keeping the
+reader restricted. The upgrade test first verifies old-owner refusal, then performs
 the upstream DBA maintenance only in its disposable database before retrying.
 The old deployment uses a checksum-verified historical chart pinned to source
 commit `5352dfcaddfb46553d1c05a8d96cbdbb3edfe5c2`; the upgrade uses the current
@@ -65,7 +65,7 @@ Database TLS additionally has an opt-in **real application** Kind suite:
 python -u tests/integration_tls.py
 ```
 
-It uses the pinned published v0.19.1 image in its own cluster and tests
+It uses the pinned published v0.19.2 image in its own cluster and tests
 SSL-required external PostgreSQL, real migrations/readiness, CA-only projection
 from the DBA Secret, receipt restart, shared TLS switch/modes, missing keys/deadlines,
 rejected trust and
